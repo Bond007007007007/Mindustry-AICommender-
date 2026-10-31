@@ -7,10 +7,11 @@ import mindustry.mod.*;
 
 public class AICommanderMod extends Mod{
     public static final String NAME = "ai-commander";
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.7.0";
 
     private CommanderController controller;
     private Hud hud;
+    private TacticalOverlay overlay;
 
     public AICommanderMod(){
         Log.info("[AI Commander] constructor, version @", VERSION);
@@ -20,6 +21,7 @@ public class AICommanderMod extends Mod{
             controller = new CommanderController();
             hud = new Hud(controller);
             hud.build();
+            overlay = new TacticalOverlay(controller);
             Log.info("[AI Commander] client ready");
         });
 
@@ -35,6 +37,10 @@ public class AICommanderMod extends Mod{
         Events.run(Trigger.update, () -> {
             if(controller != null) controller.update();
             if(hud != null) hud.update();
+        });
+
+        Events.run(Trigger.draw, () -> {
+            if(overlay != null) overlay.draw();
         });
     }
 

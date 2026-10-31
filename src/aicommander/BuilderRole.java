@@ -254,6 +254,16 @@ public class BuilderRole{
         return queue.size();
     }
 
+    public List<PlannedBlock> peekQueue(int max){
+        List<PlannedBlock> list = new ArrayList<>();
+        int count = 0;
+        for(PlannedBlock pb : queue){
+            list.add(pb);
+            if(++count >= max) break;
+        }
+        return list;
+    }
+
     public void clear(){
         queue.clear();
         queued.clear();

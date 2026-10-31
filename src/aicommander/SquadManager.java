@@ -146,6 +146,10 @@ public class SquadManager{
         return squads.get(type);
     }
 
+    public Collection<Squad> allSquads(){
+        return squads.values();
+    }
+
     public void clear(){
         for(Squad s : squads.values()){
             s.clear();

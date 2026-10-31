@@ -172,6 +172,12 @@ public class CommanderController{
         }
     }
 
+    public void promptNow(String reason){
+        if(!active || busy || client == null) return;
+        log("manual prompt triggered: " + reason);
+        askCommander();
+    }
+
     private void askCommander(){
         if(!active || busy || client == null) return;
 

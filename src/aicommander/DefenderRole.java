@@ -159,4 +159,8 @@ public class DefenderRole{
     public int waypointCount(){
         return waypoints.size();
     }
+
+    public List<Vec2> waypoints(){
+        return waypoints;
+    }
 }

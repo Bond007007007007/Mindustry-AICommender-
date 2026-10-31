@@ -92,11 +92,21 @@ public class Hud{
             body.table(btn -> {
                 btn.button("[lime]Start[]", Styles.cleart, () -> {
                     if(state.isGame()) ctrl.start();
-                }).pad(4f).size(80f, 32f);
+                }).pad(2f).size(50f, 28f);
                 btn.button("[scarlet]Stop[]", Styles.cleart, () -> {
                     ctrl.stop("manual");
-                }).pad(4f).size(80f, 32f);
-            }).pad(4f).row();
+                }).pad(2f).size(50f, 28f);
+                btn.button("[accent]Prompt[]", Styles.cleart, () -> {
+                    if(state.isGame() && ctrl.isActive()){
+                        ctrl.promptNow("manual_hud");
+                    }
+                }).pad(2f).size(60f, 28f);
+                btn.button(Settings.overlayDebug() ? "[stat]Map:ON[]" : "[gray]Map:OFF[]", Styles.cleart, () -> {
+                    boolean next = !Settings.overlayDebug();
+                    Settings.setOverlayDebug(next);
+                    refreshNow();
+                }).pad(2f).size(62f, 28f);
+            }).pad(2f).row();
         }).growX().row();
 
         root.pack();
