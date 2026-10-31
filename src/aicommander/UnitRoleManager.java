@@ -5,54 +5,58 @@ import mindustry.gen.*;
 
 import java.util.List;
 
+import static mindustry.Vars.*;
+
 /**
- * UnitRoleManager dispatches incoming orders to the appropriate role handler.
- *
- * Roles:
- *   build   → BuilderRole
- *   defend  → DefenderRole
- *   attack  → ScoutRole
- *   repair  → (future, ignored for now)
- *   mine    → (future, ignored for now)
- *   produce → (future, ignored for now)
+ * UnitRoleManager coordinates orders across roles:
+ * - BuilderRole: handles construction sites & drives builder units/player unit
+ * - DefenderRole: manages defensive rally points & emergency combat response
+ * - ScoutRole: sends exploratory/assault groups
+ * - LogisticsRole: handles auto-mining & item logistics when builders are idle
  */
 public class UnitRoleManager{
     private final BuilderRole builder = new BuilderRole();
     private final DefenderRole defender = new DefenderRole();
     private final ScoutRole scout = new ScoutRole();
+    private final LogisticsRole logistics = new LogisticsRole();
 
-    /** Called on the main thread with the parsed order list from each LLM response. */
     public void applyOrders(List<Order> orders){
         for(Order order : orders){
             switch(order.type){
                 case build   -> builder.addOrder(order);
                 case defend  -> defender.addOrder(order);
                 case attack  -> scout.addOrder(order);
-                case repair, mine, produce -> Log.info(
-                    "[AI Commander/Roles] order type '@' queued (not yet implemented)", order.type);
+                case mine    -> logistics.addOrder(order);
+                case repair, produce -> Log.info(
+                    "[AI Commander/Roles] order type '@' received", order.type);
                 case unknown -> Log.warn(
                     "[AI Commander/Roles] unknown order type in: @", order.raw);
             }
         }
     }
 
-    /** Called every game tick from the main update loop. */
     public void update(){
         builder.update();
         defender.update();
         scout.update();
+
+        // Check if player unit is busy building or fighting
+        boolean buildingBusy = builder.queueSize() > 0 || (player.unit() != null && player.unit().buildPlan() != null);
+        boolean combatBusy = defender.isUrgentThreat();
+
+        // If not busy building or fighting, perform autonomous logistics / mining
+        logistics.update(buildingBusy, combatBusy);
     }
 
-    /** Called when the match ends or controller is stopped. */
     public void clear(){
         builder.clear();
         defender.clear();
         scout.clear();
+        logistics.clear();
     }
-
-    // ── Accessors for HUD / logging ──────────────────────────────────────────
 
     public BuilderRole builder(){ return builder; }
     public DefenderRole defender(){ return defender; }
     public ScoutRole scout(){ return scout; }
+    public LogisticsRole logistics(){ return logistics; }
 }

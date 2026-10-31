@@ -1,8 +1,13 @@
 package aicommander;
 
+import arc.math.Mathf;
 import arc.math.geom.Point2;
+import arc.math.geom.Vec2;
+import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Time;
+import mindustry.ai.types.CommandAI;
+import mindustry.entities.units.BuildPlan;
 import mindustry.game.Team;
 import mindustry.gen.*;
 import mindustry.world.Block;
@@ -16,35 +21,25 @@ import static mindustry.Vars.*;
 /**
  * BuilderRole processes "build" orders from the Commander.
  *
- * Strategy:
- * - Accepts a queue of pending build orders (tile coords + block + rotation).
- * - Each update tick, scans the queue and submits uncompleted build plans to
- *   the unit build queue via Call.buildConfirm (server-authoritative, works
- *   in multiplayer and single-player without cheats).
- * - Limits submissions per tick to avoid flooding the queue.
- * - Skips tiles that are already occupied by a valid, non-broken building of
- *   the correct type, or tiles that are already under construction.
- * - Deduplicates by tile position so duplicate orders are ignored.
- *
- * Note: actual builder units must be present and pathable for construction to
- * happen. This role only queues the intent.
+ * Polished Mechanics:
+ * 1. Enqueues requests from orders.
+ * 2. Directly assigns BuildPlan to the player unit (Alpha/Beta/Gamma) if no other builders exist.
+ * 3. Uses Call.beginPlace to place a construction site on the world.
+ * 4. Autonomous Player Unit Builder AI: if the player unit is idle or has queued build plans,
+ *    moves the player unit towards the nearest unbuilt site so construction actually proceeds!
+ * 5. Supports existing team builder units (Poly, Mega) naturally.
  */
 public class BuilderRole{
     private static final int MAX_QUEUE = 128;
-    private static final int SUBMIT_PER_TICK = 4;
-    private static final float TICK_INTERVAL = 60f; // check queue every ~1 second
+    private static final int SUBMIT_PER_TICK = 6;
+    private static final float TICK_INTERVAL = 30f; // check queue every ~0.5s
 
-    /** Pending build plan: tile (tx,ty in tile coords), block, rotation 0-3. */
-    public record BuildPlan(int tx, int ty, Block block, int rotation){}
+    public record PlannedBlock(int tx, int ty, Block block, int rotation){}
 
-    private final Deque<BuildPlan> queue = new ArrayDeque<>();
-    private final Set<Long> queued = new HashSet<>(); // packed tx,ty of already-queued tiles
+    private final Deque<PlannedBlock> queue = new ArrayDeque<>();
+    private final Set<Long> queued = new HashSet<>();
     private float lastTick;
 
-    /**
-     * Add a build plan from a Commander order.
-     * x, y are world pixel coordinates from the LLM; we convert to tile coords.
-     */
     public void addOrder(Order order){
         if(order.type != Order.Type.build) return;
         SchematicLibrary.BuildSpec spec = SchematicLibrary.get(order.schematic);
@@ -53,7 +48,6 @@ public class BuilderRole{
             return;
         }
 
-        // Convert world pixel → tile. In Mindustry, 1 tile = tilesize (8) pixels.
         int tx = world.toTile(order.x);
         int ty = world.toTile(order.y);
         int rotation = Math.max(0, Math.min(3, order.rotation));
@@ -62,29 +56,31 @@ public class BuilderRole{
         if(queued.contains(key)) return;
         if(queue.size() >= MAX_QUEUE) return;
 
-        queue.addLast(new BuildPlan(tx, ty, spec.block(), rotation));
+        queue.addLast(new PlannedBlock(tx, ty, spec.block(), rotation));
         queued.add(key);
     }
 
-    /** Call from the main game update loop. */
+    /** Called from main game loop every frame/tick. */
     public void update(){
         if(!state.isGame()) return;
+
+        // Drive the player unit to build if there are plans or construction blocks nearby
+        updatePlayerBuilding();
+
         if(Time.time - lastTick < TICK_INTERVAL) return;
         lastTick = Time.time;
 
         int submitted = 0;
-        Iterator<BuildPlan> it = queue.iterator();
+        Iterator<PlannedBlock> it = queue.iterator();
         while(it.hasNext() && submitted < SUBMIT_PER_TICK){
-            BuildPlan plan = it.next();
+            PlannedBlock plan = it.next();
 
-            // Remove from queue if tile is already correctly built or under construction.
             if(tileOk(plan)){
                 it.remove();
                 queued.remove(Point2.pack(plan.tx(), plan.ty()));
                 continue;
             }
 
-            // Skip if tile is invalid or blocked by something non-removable.
             Tile tile = world.tile(plan.tx(), plan.ty());
             if(tile == null){
                 it.remove();
@@ -92,11 +88,16 @@ public class BuilderRole{
                 continue;
             }
 
-            // Submit build plan through the official server-side API.
-            // Call.beginPlace places a ConstructBlock which builder units will complete.
             Team team = player.team();
             Unit unit = player.unit();
+
+            // Submit construction site
             Call.beginPlace(unit, plan.block(), team, plan.tx(), plan.ty(), plan.rotation(), null);
+
+            // Also queue on player unit's personal build plan list if it can build
+            if(unit != null && unit.canBuild()){
+                unit.addBuild(new BuildPlan(plan.tx(), plan.ty(), plan.rotation(), plan.block()));
+            }
 
             it.remove();
             queued.remove(Point2.pack(plan.tx(), plan.ty()));
@@ -104,15 +105,60 @@ public class BuilderRole{
         }
     }
 
-    /** Returns true if the tile already has the desired block in good shape. */
-    private boolean tileOk(BuildPlan plan){
+    /**
+     * Drives the player unit toward active build sites when there are construction jobs.
+     * Prevents the player unit from being static and useless during the early game.
+     */
+    private void updatePlayerBuilding(){
+        Unit u = player.unit();
+        if(u == null || !u.isValid() || !u.canBuild()) return;
+
+        // If player unit already has plans queued
+        BuildPlan plan = u.buildPlan();
+        if(plan != null){
+            float targetX = plan.tile().worldx();
+            float targetY = plan.tile().worldy();
+            float buildRange = u.type.buildRange - 20f;
+
+            if(!u.within(targetX, targetY, buildRange)){
+                // Move towards build site
+                Vec2 dir = new Vec2(targetX - u.x, targetY - u.y).limit(u.speed());
+                u.movePref(dir);
+            }
+            return;
+        }
+
+        // If player unit has no plan, look for closest unbuilt ConstructBuild belonging to our team
+        Team team = player.team();
+        Building closest = null;
+        float minDist = Float.MAX_VALUE;
+
+        for(Building b : team.data().buildings){
+            if(b instanceof ConstructBlock.ConstructBuild cb){
+                float dist = u.dst(cb);
+                if(dist < minDist){
+                    minDist = dist;
+                    closest = cb;
+                }
+            }
+        }
+
+        if(closest instanceof ConstructBlock.ConstructBuild cb){
+            // Queue this construct plan to the player unit
+            u.addBuild(new BuildPlan(cb.tileX(), cb.tileY(), cb.rotation, cb.current));
+            if(!u.within(cb.x, cb.y, u.type.buildRange - 20f)){
+                Vec2 dir = new Vec2(cb.x - u.x, cb.y - u.y).limit(u.speed());
+                u.movePref(dir);
+            }
+        }
+    }
+
+    private boolean tileOk(PlannedBlock plan){
         Tile tile = world.tile(plan.tx(), plan.ty());
         if(tile == null) return false;
 
-        // Already the right block, healthy enough.
         if(tile.block() == plan.block() && tile.build != null && tile.build.health > 0) return true;
 
-        // Under construction for the same block.
         if(tile.block() instanceof ConstructBlock && tile.build instanceof ConstructBlock.ConstructBuild cb){
             return cb.current == plan.block();
         }

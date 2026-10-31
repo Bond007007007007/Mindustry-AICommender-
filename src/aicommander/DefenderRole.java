@@ -1,38 +1,39 @@
 package aicommander;
 
 import arc.math.geom.Vec2;
+import arc.util.Log;
 import arc.util.Time;
 import mindustry.ai.types.CommandAI;
+import mindustry.entities.Units;
 import mindustry.game.Team;
 import mindustry.gen.*;
+import mindustry.world.blocks.storage.CoreBlock;
 
 import java.util.*;
 
 import static mindustry.Vars.*;
 
 /**
- * DefenderRole assigns units to hold defensive positions ordered by the Commander.
+ * DefenderRole assigns units and player unit to defend key locations and respond to enemy incursions.
  *
- * Design:
- * - Maintains a list of active defend waypoints (world pixel coords).
- * - Each update, picks units with CommandAI controllers that are idle (no active target)
- *   and assigns them to the nearest waypoint that needs more defenders.
- * - Does not reassign units that are already heading to a waypoint.
- * - Uses standard CommandAI.commandMove() — no cheating.
+ * Polished Mechanics:
+ * 1. Tracks defend orders and core positions.
+ * 2. If enemies are spotted within 300px of core or defenses, marks combat as urgent.
+ * 3. Commands combat units (CommandAI) to intercept threats.
+ * 4. If enemies approach the player unit, player unit can defensively kite and shoot back.
  */
 public class DefenderRole{
     private static final int MAX_WAYPOINTS = 8;
     private static final int DEFENDERS_PER_POINT = 5;
-    private static final float TICK_INTERVAL = 90f; // ~1.5s
+    private static final float TICK_INTERVAL = 30f; // ~0.5s
 
     private final List<Vec2> waypoints = new ArrayList<>();
     private float lastTick;
+    private boolean urgentThreat = false;
 
-    /** Add or replace the defend waypoints from new orders. */
     public void addOrder(Order order){
         if(order.type != Order.Type.defend) return;
         Vec2 pos = new Vec2(order.x, order.y);
-        // Deduplicate by proximity (within 2 tiles).
         for(Vec2 wp : waypoints){
             if(wp.dst(pos) < 16f) return;
         }
@@ -43,16 +44,55 @@ public class DefenderRole{
     }
 
     public void update(){
-        if(!state.isGame() || waypoints.isEmpty()) return;
+        if(!state.isGame()) return;
         if(Time.time - lastTick < TICK_INTERVAL) return;
         lastTick = Time.time;
 
         Team team = player.team();
+        Building core = player.closestCore();
 
-        // Count how many units are already assigned to each waypoint.
+        // Check for nearby enemy threats
+        urgentThreat = false;
+        Unit nearestEnemy = null;
+        if(core != null){
+            nearestEnemy = Units.closestEnemy(team, core.x, core.y, 450f, u -> true);
+            if(nearestEnemy != null){
+                urgentThreat = true;
+            }
+        }
+
+        // Check player unit combat assistance if under attack
+        Unit playerUnit = player.unit();
+        if(playerUnit != null && playerUnit.isValid()){
+            Unit threatToPlayer = Units.closestEnemy(team, playerUnit.x, playerUnit.y, 250f, u -> true);
+            if(threatToPlayer != null){
+                urgentThreat = true;
+                // Aim and fire at enemy if in range
+                if(playerUnit.hasWeapons()){
+                    playerUnit.lookAt(threatToPlayer);
+                    playerUnit.aim(threatToPlayer);
+                    playerUnit.controlWeapons(true, true);
+                }
+            }
+        }
+
+        // If urgent threat at core, rally defenders to the threat!
+        if(urgentThreat && nearestEnemy != null){
+            for(Unit unit : team.data().units){
+                if(unit == null || !unit.isValid() || unit == playerUnit) continue;
+                if(unit.controller() instanceof CommandAI ai){
+                    ai.commandPosition(new Vec2(nearestEnemy.x, nearestEnemy.y));
+                }
+            }
+            return;
+        }
+
+        if(waypoints.isEmpty()) return;
+
+        // Normal waypoint distribution
         int[] assigned = new int[waypoints.size()];
         for(Unit unit : team.data().units){
-            if(unit == null || !unit.isValid()) continue;
+            if(unit == null || !unit.isValid() || unit == playerUnit) continue;
             if(!(unit.controller() instanceof CommandAI ai)) continue;
             if(ai.targetPos == null) continue;
             for(int i = 0; i < waypoints.size(); i++){
@@ -64,15 +104,11 @@ public class DefenderRole{
             }
         }
 
-        // Assign idle units to under-defended waypoints.
         for(Unit unit : team.data().units){
-            if(unit == null || !unit.isValid()) continue;
+            if(unit == null || !unit.isValid() || unit == playerUnit) continue;
             if(!(unit.controller() instanceof CommandAI ai)) continue;
-
-            // Only reassign truly idle units (no target pos or already near core).
             if(ai.targetPos != null) continue;
 
-            // Find the waypoint most in need.
             int bestIndex = -1;
             int minAssigned = Integer.MAX_VALUE;
             for(int i = 0; i < waypoints.size(); i++){
@@ -89,8 +125,13 @@ public class DefenderRole{
         }
     }
 
+    public boolean isUrgentThreat(){
+        return urgentThreat;
+    }
+
     public void clear(){
         waypoints.clear();
+        urgentThreat = false;
     }
 
     public int waypointCount(){

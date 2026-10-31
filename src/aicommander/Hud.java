@@ -146,9 +146,10 @@ public class Hud{
 
         if(ctrl.isActive()){
             UnitRoleManager roles = ctrl.roles();
-            rolesLabel.setText("build:" + roles.builder().queueSize()
+            rolesLabel.setText("bld:" + roles.builder().queueSize()
                 + " def:" + roles.defender().waypointCount()
-                + " scout:" + roles.scout().waypointCount());
+                + " sct:" + roles.scout().waypointCount()
+                + (roles.defender().isUrgentThreat() ? " [scarlet]!ALERT![]" : ""));
         } else {
             rolesLabel.setText("--");
         }

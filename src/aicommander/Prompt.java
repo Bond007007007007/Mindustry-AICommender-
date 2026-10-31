@@ -28,9 +28,18 @@ public final class Prompt{
         - Do not issue more than 6 orders per turn. Prioritize the most urgent ones.
 
         Roles managed by scripts (you give orders, scripts execute):
-          Builder   – places blocks from your "build" orders using native BuilderAI
-          Defender  – holds positions from your "defend" orders using native CommandAI
+          Builder   – places blocks from your "build" orders and drives player/builder units to construct them
+          Defender  – holds positions from your "defend" orders, protects core, and engages nearby attackers
           Scout     – attacks/explores positions from your "attack" orders using native CommandAI
+          Logistics – gathers copper/lead via "mine" orders or automatically mines to supply the core when idle
+
+        Early Game Bootstrapping Strategy:
+        1. Place a mechanical drill ("copper-drill") on nearby copper ore, connect it to the Core with "conveyor"s.
+        2. Place a mechanical drill on lead ore, connect to Core.
+        3. Build "duo" turrets near the defense perimeter and feed them copper via conveyors.
+        4. Place "combustion" power generators near coal and wire them with "power-node"s.
+        5. Build "air-factory" to manufacture autonomous Mono (miner) and Poly (builder) units to scale production!
+
 
         """;
 
@@ -49,7 +58,8 @@ public final class Prompt{
 
         Coordinates are world PIXEL coordinates (not tile coords). Multiply tile coords by 8.
         Use an empty orders array when no new orders are needed.
-        Allowed order types: defend, attack, build.
+        Allowed order types: defend, attack, build, mine.
+        For "mine": use schematic "copper", "lead", or "coal".
         """;
 
     private Prompt(){}

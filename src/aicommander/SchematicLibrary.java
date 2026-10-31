@@ -46,17 +46,28 @@ public final class SchematicLibrary{
         register("copper-drill",    Blocks.mechanicalDrill);
         register("graphite-drill",  Blocks.pneumaticDrill);
         register("conveyor",        Blocks.conveyor);
+        register("router",          Blocks.router);
+        register("distributor",     Blocks.distributor);
         register("junction",        Blocks.junction);
+        register("bridge-conveyor", Blocks.bridgeConveyor);
         register("duo",             Blocks.duo);
+        register("copper-wall",     Blocks.copperWall);
+        register("copper-wall-large", Blocks.copperWallLarge);
         register("scatter",         Blocks.scatter);
         register("hail",            Blocks.hail);
         register("container",       Blocks.container);
         register("vault",           Blocks.vault);
         register("power-node",      Blocks.powerNode);
+        register("power-node-large",Blocks.powerNodeLarge);
         register("combustion",      Blocks.combustionGenerator);
+        register("solar-panel",     Blocks.solarPanel);
+        register("battery",         Blocks.battery);
         register("silicon-smelter", Blocks.siliconSmelter);
         register("graphite-press",  Blocks.graphitePress);
         register("kiln",            Blocks.kiln);
+        register("air-factory",     Blocks.airFactory);
+        register("ground-factory",  Blocks.groundFactory);
+        register("repair-point",    Blocks.repairPoint);
         register("wave",            Blocks.wave);    // liquid source — useful for turret cooling
         register("lancer",          Blocks.lancer);
         register("arc",             Blocks.arc);
