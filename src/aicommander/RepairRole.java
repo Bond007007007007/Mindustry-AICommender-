@@ -45,8 +45,8 @@ public class RepairRole{
         // Move player unit within repair range and repair
         float buildRange = playerUnit.type.buildRange - 16f;
         if(!playerUnit.within(currentDamaged, buildRange)){
-            float angle = playerUnit.angleTo(currentDamaged);
-            playerUnit.movePref(arc.math.Angles.trnsx(angle, playerUnit.speed()), arc.math.Angles.trnsy(angle, playerUnit.speed()));
+            arc.math.geom.Vec2 dir = new arc.math.geom.Vec2(currentDamaged.x - playerUnit.x, currentDamaged.y - playerUnit.y).limit(playerUnit.speed());
+            playerUnit.movePref(dir);
             playerUnit.lookAt(currentDamaged);
         }else{
             // Within repair range: queue repair build plan if not already active

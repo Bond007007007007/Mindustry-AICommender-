@@ -78,8 +78,8 @@ public class DefenderRole{
                     float idealDist = Math.max(80f, playerUnit.range() * 0.75f);
                     if(dist < idealDist){
                         // Back away from aggressive enemy
-                        float angle = playerUnit.angleTo(threatToPlayer) + 180f;
-                        playerUnit.movePref(arc.math.Angles.trnsx(angle, playerUnit.speed()), arc.math.Angles.trnsy(angle, playerUnit.speed()));
+                        Vec2 dir = new Vec2(playerUnit.x - threatToPlayer.x, playerUnit.y - threatToPlayer.y).setLength(playerUnit.speed());
+                        playerUnit.movePref(dir);
                     }
                 }
             }
