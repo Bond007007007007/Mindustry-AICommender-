@@ -67,7 +67,8 @@ public final class Prompt{
 
         Coordinates are world PIXEL coordinates (not tile coords). Multiply tile coords by 8.
         Use an empty orders array when no new orders are needed.
-        Allowed order types: defend, attack, build, mine, produce.
+        Allowed order types: defend, attack, build, mine, produce, stance.
+        Stance orders: {"type": "stance", "stance": "defend" | "rally" | "assault" | "retreat", "x": 0, "y": 0}
         For "build" with conveyor/bridge/conduit: providing "x2" and "y2" will lay a connected line of tiles.
         Available composite defense blueprints: "duo-bunker" (Duo surrounded by walls & router), "duo-battery-cluster", "scatter-nest", "drill-power-outpost".
         For "mine": use schematic "copper", "lead", or "coal".

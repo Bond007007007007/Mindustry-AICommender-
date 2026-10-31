@@ -30,6 +30,7 @@ public class UnitRoleManager{
                 case attack  -> scout.addOrder(order);
                 case mine    -> logistics.addOrder(order);
                 case produce -> handleProduce(order);
+                case stance  -> handleStance(order);
                 case repair  -> Log.info(
                     "[AI Commander/Roles] order type '@' received", order.type);
                 case unknown -> Log.warn(
@@ -52,6 +53,18 @@ public class UnitRoleManager{
                     }
                 }
             }
+        }
+    }
+
+    private void handleStance(Order order){
+        if(order.stance == null) return;
+        try{
+            SquadManager.Stance stance = SquadManager.Stance.valueOf(order.stance.toLowerCase(Locale.ROOT));
+            arc.math.geom.Vec2 target = (order.x != 0f || order.y != 0f) ? new arc.math.geom.Vec2(order.x, order.y) : null;
+            defender.squadManager().setStance(stance, target);
+            Log.info("[AI Commander/Roles] Set squad tactical stance: @ @", stance, target != null ? target : "");
+        }catch(Exception e){
+            Log.warn("[AI Commander/Roles] Unknown stance: @", order.stance);
         }
     }
 

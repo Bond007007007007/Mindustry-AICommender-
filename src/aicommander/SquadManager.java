@@ -93,10 +93,21 @@ public class SquadManager{
             if(squad.members.isEmpty()) continue;
 
             // Priority 1: Urgent threat
-            if(urgentThreat && priorityThreat != null){
+            if(urgentThreat && priorityThreat != null && stance != Stance.retreat){
                 squad.targetPos = new Vec2(priorityThreat.x, priorityThreat.y);
                 squad.attackTarget = priorityThreat;
-            }else if(squad.targetPos == null && core != null){
+            }else if(stance == Stance.assault){
+                // Hunt down closest enemy or enemy spawn point
+                Unit closestEnemy = Units.closestEnemy(team, core != null ? core.x : 0f, core != null ? core.y : 0f, 2000f, u -> true);
+                if(closestEnemy != null){
+                    squad.targetPos = new Vec2(closestEnemy.x, closestEnemy.y);
+                    squad.attackTarget = closestEnemy;
+                }else if(rallyPoint != null){
+                    squad.targetPos = rallyPoint;
+                }
+            }else if(stance == Stance.rally && rallyPoint != null){
+                squad.targetPos = rallyPoint;
+            }else if(core != null){
                 // Default to defensive orbit around core
                 squad.targetPos = new Vec2(core.x, core.y);
             }
@@ -107,11 +118,32 @@ public class SquadManager{
         }
     }
 
-    public void setSquadOrder(SquadType type, Vec2 target){
-        Squad s = squads.get(type);
-        if(s != null){
-            s.targetPos = target;
+    public enum Stance{
+        defend("Defend Core"),
+        rally("Rally Waypoint"),
+        assault("Aggressive Assault"),
+        retreat("Emergency Fallback");
+
+        public final String title;
+        Stance(String title){ this.title = title; }
+    }
+
+    private Stance stance = Stance.defend;
+    private Vec2 rallyPoint = null;
+
+    public void setStance(Stance newStance, Vec2 point){
+        this.stance = newStance;
+        if(point != null){
+            this.rallyPoint = point.cpy();
         }
+    }
+
+    public Stance getStance(){
+        return stance;
+    }
+
+    public Vec2 getRallyPoint(){
+        return rallyPoint;
     }
 
     private void dispatchSquad(Squad squad){

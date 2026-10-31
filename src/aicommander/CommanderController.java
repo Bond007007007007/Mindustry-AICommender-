@@ -36,6 +36,7 @@ public class CommanderController{
     private final UnitRoleManager roles = new UnitRoleManager();
     private final PostMatchReview review = new PostMatchReview();
     private final FallbackAdvisor fallback = new FallbackAdvisor();
+    private final ResearchManager research = new ResearchManager();
 
     private ModelClient client;
     private Fi logFile;
@@ -166,6 +167,7 @@ public class CommanderController{
 
         roles.update();
         fallback.update(this, roles);
+        research.update();
 
         if(active && !busy && client != null && Time.time - lastPrompt >= Math.max(5, Settings.interval())){
             askCommander();

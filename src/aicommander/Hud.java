@@ -157,10 +157,11 @@ public class Hud{
         if(ctrl.isActive()){
             UnitRoleManager roles = ctrl.roles();
             int combatUnits = roles.defender().squadManager().totalCombatUnits();
+            SquadManager.Stance stance = roles.defender().squadManager().getStance();
             rolesLabel.setText("bld:" + roles.builder().queueSize()
                 + " sqd:" + combatUnits
+                + " [" + stance.name() + "]"
                 + " def:" + roles.defender().waypointCount()
-                + " sct:" + roles.scout().waypointCount()
                 + (roles.defender().isUrgentThreat() ? " [scarlet]!ALERT![]" : ""));
         } else {
             rolesLabel.setText("--");

@@ -17,7 +17,7 @@ import java.util.*;
  */
 public final class Order{
     public enum Type{
-        defend, attack, build, repair, mine, produce, unknown
+        defend, attack, build, repair, mine, produce, stance, unknown
     }
 
     public final Type type;
@@ -31,10 +31,12 @@ public final class Order{
     public final int rotation;
     /** For produce orders: unit type name. */
     public final String unitType;
+    /** For stance orders: defend, rally, assault, retreat. */
+    public final String stance;
     /** Raw JSON for debugging. */
     public final String raw;
 
-    private Order(Type type, float x, float y, float x2, float y2, String schematic, int rotation, String unitType, String raw){
+    private Order(Type type, float x, float y, float x2, float y2, String schematic, int rotation, String unitType, String stance, String raw){
         this.type = type;
         this.x = x;
         this.y = y;
@@ -43,6 +45,7 @@ public final class Order{
         this.schematic = schematic;
         this.rotation = rotation;
         this.unitType = unitType;
+        this.stance = stance;
         this.raw = raw;
     }
 
@@ -62,17 +65,18 @@ public final class Order{
         String schematic = obj.getString("schematic", "");
         int rotation = (int)obj.getDouble("rotation", 0.0);
         String unitType = obj.getString("unit", "");
+        String stance = obj.getString("stance", "defend");
         String raw = obj.toString();
 
-        return new Order(type, x, y, x2, y2, schematic, rotation, unitType, raw);
+        return new Order(type, x, y, x2, y2, schematic, rotation, unitType, stance, raw);
     }
 
     public static Order build(String schematic, float x, float y, int rotation){
-        return new Order(Type.build, x, y, 0, 0, schematic, rotation, "", "");
+        return new Order(Type.build, x, y, 0, 0, schematic, rotation, "", "defend", "");
     }
 
     public static Order buildLine(String schematic, float x1, float y1, float x2, float y2){
-        return new Order(Type.build, x1, y1, x2, y2, schematic, 0, "", "");
+        return new Order(Type.build, x1, y1, x2, y2, schematic, 0, "", "defend", "");
     }
 
     public static List<Order> parseAll(Jval ordersArray){
@@ -93,6 +97,7 @@ public final class Order{
                 ? "buildLine(" + schematic + "@" + (int)x + "," + (int)y + "->" + (int)x2 + "," + (int)y2 + ")"
                 : "build(" + schematic + "@" + (int)x + "," + (int)y + " r" + rotation + ")";
             case produce -> "produce(" + unitType + ")";
+            case stance -> "stance(" + stance + (x != 0 || y != 0 ? "@" + (int)x + "," + (int)y : "") + ")";
             default -> type.name() + "(" + (int)x + "," + (int)y + ")";
         };
     }

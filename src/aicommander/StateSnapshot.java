@@ -18,6 +18,10 @@ public final class StateSnapshot{
     private static final int MAX_BUILDINGS = 60;
     private static final int MAX_ENEMIES = 40;
 
+    // Rate-of-change telemetry (items per second)
+    private static final Map<String, Integer> lastItems = new HashMap<>();
+    private static float lastCaptureTime = 0f;
+
     private StateSnapshot(){
     }
 
@@ -144,11 +148,30 @@ public final class StateSnapshot{
         out.put("capacity", core.storageCapacity);
 
         Jval items = Jval.newObject();
+        Jval rates = Jval.newObject();
+
+        float now = arc.util.Time.time;
+        float dt = (lastCaptureTime > 0f) ? (now - lastCaptureTime) / 60f : 0f;
+
         for(Item item : content.items()){
             int amount = core.items.get(item);
             if(amount > 0) items.put(item.name, amount);
+
+            if(dt >= 1f){
+                int prev = lastItems.getOrDefault(item.name, amount);
+                float rate = (amount - prev) / dt;
+                if(Math.abs(rate) >= 0.1f){
+                    rates.put(item.name, (double)Math.round(rate * 10f) / 10.0);
+                }
+                lastItems.put(item.name, amount);
+            }
         }
+        if(dt >= 1f || lastCaptureTime == 0f){
+            lastCaptureTime = now;
+        }
+
         out.put("items", items);
+        out.put("rates", rates);
         return out;
     }
 
