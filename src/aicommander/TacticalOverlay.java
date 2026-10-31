@@ -50,7 +50,7 @@ public class TacticalOverlay{
         // 2. Draw Defensive Choke Point Waypoints & Alert Zone
         DefenderRole def = roles.defender();
         for(Vec2 defWp : def.waypoints()){
-            Color defCol = def.isUrgentThreat() ? Pal.scarlet : Pal.command;
+            Color defCol = def.isUrgentThreat() ? Color.scarlet : Pal.command;
             Lines.stroke(1.8f, defCol);
             Lines.circle(defWp.x, defWp.y, 20f + (def.isUrgentThreat() ? Mathf.absin(Time.time, 4f, 5f) : 0f));
             Drawf.target(defWp.x, defWp.y, 10f, defCol);
