@@ -49,7 +49,7 @@ public final class SchematicLibrary{
         register("router",          Blocks.router);
         register("distributor",     Blocks.distributor);
         register("junction",        Blocks.junction);
-        register("bridge-conveyor", Blocks.bridgeConveyor);
+        register("bridge-conveyor", Blocks.itemBridge);
         register("duo",             Blocks.duo);
         register("copper-wall",     Blocks.copperWall);
         register("copper-wall-large", Blocks.copperWallLarge);
