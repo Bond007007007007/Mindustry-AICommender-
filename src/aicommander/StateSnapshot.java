@@ -39,11 +39,31 @@ public final class StateSnapshot{
             root.put("player", unit(commander));
         }
 
+        root.put("ores", ores(core));
         root.put("units", units(team));
         root.put("buildings", buildings(team));
         root.put("enemies", enemies(team));
 
         return root;
+    }
+
+    private static Jval ores(CoreBuild core){
+        Jval list = Jval.newArray();
+        if(core == null || indexer == null) return list;
+
+        Item[] targets = {Items.copper, Items.lead, Items.coal, Items.titanium};
+        for(Item item : targets){
+            Tile closest = indexer.findClosestOre(core.x, core.y, item);
+            if(closest != null){
+                Jval o = Jval.newObject();
+                o.put("item", item.name);
+                o.put("x", (double)closest.worldx());
+                o.put("y", (double)closest.worldy());
+                o.put("dist", (double)Math.round(core.dst(closest)));
+                list.add(o);
+            }
+        }
+        return list;
     }
 
     private static Jval core(CoreBuild core){

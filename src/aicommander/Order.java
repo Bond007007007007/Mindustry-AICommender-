@@ -23,6 +23,8 @@ public final class Order{
     public final Type type;
     /** World pixel coordinates (may be 0 if not applicable). */
     public final float x, y;
+    /** End coordinates for line orders (e.g. conveyor line). */
+    public final float x2, y2;
     /** For build orders: schematic name from SchematicLibrary. */
     public final String schematic;
     /** For build orders: 0-3 rotation. */
@@ -32,10 +34,12 @@ public final class Order{
     /** Raw JSON for debugging. */
     public final String raw;
 
-    private Order(Type type, float x, float y, String schematic, int rotation, String unitType, String raw){
+    private Order(Type type, float x, float y, float x2, float y2, String schematic, int rotation, String unitType, String raw){
         this.type = type;
         this.x = x;
         this.y = y;
+        this.x2 = x2;
+        this.y2 = y2;
         this.schematic = schematic;
         this.rotation = rotation;
         this.unitType = unitType;
@@ -53,12 +57,14 @@ public final class Order{
 
         float x = (float)obj.getDouble("x", 0.0);
         float y = (float)obj.getDouble("y", 0.0);
+        float x2 = (float)obj.getDouble("x2", 0.0);
+        float y2 = (float)obj.getDouble("y2", 0.0);
         String schematic = obj.getString("schematic", "");
         int rotation = (int)obj.getDouble("rotation", 0.0);
         String unitType = obj.getString("unit", "");
         String raw = obj.toString();
 
-        return new Order(type, x, y, schematic, rotation, unitType, raw);
+        return new Order(type, x, y, x2, y2, schematic, rotation, unitType, raw);
     }
 
     public static List<Order> parseAll(Jval ordersArray){
@@ -75,7 +81,9 @@ public final class Order{
     @Override
     public String toString(){
         return switch(type){
-            case build -> "build(" + schematic + "@" + (int)x + "," + (int)y + " r" + rotation + ")";
+            case build -> (x2 != 0 || y2 != 0)
+                ? "buildLine(" + schematic + "@" + (int)x + "," + (int)y + "->" + (int)x2 + "," + (int)y2 + ")"
+                : "build(" + schematic + "@" + (int)x + "," + (int)y + " r" + rotation + ")";
             case produce -> "produce(" + unitType + ")";
             default -> type.name() + "(" + (int)x + "," + (int)y + ")";
         };

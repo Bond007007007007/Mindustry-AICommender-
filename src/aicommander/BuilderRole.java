@@ -50,6 +50,15 @@ public class BuilderRole{
 
         int tx = world.toTile(order.x);
         int ty = world.toTile(order.y);
+
+        // Check if this is a line order (e.g. connecting a drill to core via conveyors)
+        if(order.x2 != 0 || order.y2 != 0){
+            int tx2 = world.toTile(order.x2);
+            int ty2 = world.toTile(order.y2);
+            addLine(spec.block(), tx, ty, tx2, ty2);
+            return;
+        }
+
         int rotation = Math.max(0, Math.min(3, order.rotation));
 
         long key = Point2.pack(tx, ty);
@@ -58,6 +67,49 @@ public class BuilderRole{
 
         queue.addLast(new PlannedBlock(tx, ty, spec.block(), rotation));
         queued.add(key);
+    }
+
+    /**
+     * Builds a Manhattan line of conveyors / blocks between (x1,y1) and (x2,y2).
+     * Calculates the correct rotation for conveyor directional flow along the path.
+     */
+    private void addLine(Block block, int x1, int y1, int x2, int y2){
+        int dx = Integer.compare(x2, x1);
+        int dy = Integer.compare(y2, y1);
+
+        int cx = x1;
+        int cy = y1;
+
+        // First move horizontally
+        while(cx != x2 && queue.size() < MAX_QUEUE){
+            int rot = (dx > 0) ? 0 : 2; // 0=East, 2=West
+            long key = Point2.pack(cx, cy);
+            if(!queued.contains(key)){
+                queue.addLast(new PlannedBlock(cx, cy, block, rot));
+                queued.add(key);
+            }
+            cx += dx;
+        }
+
+        // Then move vertically
+        while(cy != y2 && queue.size() < MAX_QUEUE){
+            int rot = (dy > 0) ? 1 : 3; // 1=North, 3=South
+            long key = Point2.pack(cx, cy);
+            if(!queued.contains(key)){
+                queue.addLast(new PlannedBlock(cx, cy, block, rot));
+                queued.add(key);
+            }
+            cy += dy;
+        }
+
+        // Final tile at destination
+        long key = Point2.pack(cx, cy);
+        if(!queued.contains(key) && queue.size() < MAX_QUEUE){
+            // Point towards end direction if moving, else default 0
+            int rot = (dx != 0) ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3);
+            queue.addLast(new PlannedBlock(cx, cy, block, rot));
+            queued.add(key);
+        }
     }
 
     /** Called from main game loop every frame/tick. */

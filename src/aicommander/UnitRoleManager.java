@@ -27,10 +27,27 @@ public class UnitRoleManager{
                 case defend  -> defender.addOrder(order);
                 case attack  -> scout.addOrder(order);
                 case mine    -> logistics.addOrder(order);
-                case repair, produce -> Log.info(
+                case produce -> handleProduce(order);
+                case repair  -> Log.info(
                     "[AI Commander/Roles] order type '@' received", order.type);
                 case unknown -> Log.warn(
                     "[AI Commander/Roles] unknown order type in: @", order.raw);
+            }
+        }
+    }
+
+    private void handleProduce(Order order){
+        if(order.unitType == null || order.unitType.isEmpty()) return;
+        // Search player team buildings for UnitFactory
+        for(Building b : player.team().data().buildings){
+            if(b instanceof mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild factory){
+                for(int i = 0; i < factory.plans.size; i++){
+                    if(factory.plans.get(i).unit.name.equalsIgnoreCase(order.unitType)){
+                        factory.currentPlan = i;
+                        Log.info("[AI Commander/Roles] Set factory at @,@ to produce @", factory.tileX(), factory.tileY(), order.unitType);
+                        return;
+                    }
+                }
             }
         }
     }

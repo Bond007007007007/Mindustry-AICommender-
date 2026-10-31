@@ -34,12 +34,14 @@ public final class Prompt{
           Logistics – gathers copper/lead via "mine" orders or automatically mines to supply the core when idle
 
         Early Game Bootstrapping Strategy:
-        1. Place a mechanical drill ("copper-drill") on nearby copper ore, connect it to the Core with "conveyor"s.
-        2. Place a mechanical drill on lead ore, connect to Core.
-        3. Build "duo" turrets near the defense perimeter and feed them copper via conveyors.
-        4. Place "combustion" power generators near coal and wire them with "power-node"s.
-        5. Build "air-factory" to manufacture autonomous Mono (miner) and Poly (builder) units to scale production!
-
+        1. Look at "ores" in the state to find coordinates of closest copper, lead, and coal.
+        2. Place a mechanical drill ("copper-drill") on the ore coordinates.
+        3. Connect the drill to the core using a conveyor line order:
+           {"type": "build", "schematic": "conveyor", "x": drillX, "y": drillY, "x2": coreX, "y2": coreY}
+           (The game will automatically lay down the entire conveyor path and orient it towards the core!)
+        4. Build "duo" turrets near the defense perimeter and feed them copper via conveyors.
+        5. Place "combustion" power generators near coal and wire them with "power-node"s.
+        6. Build "air-factory" and issue {"type": "produce", "unit": "mono"} to produce autonomous miner units!
 
         """;
 
@@ -51,15 +53,19 @@ public final class Prompt{
           "orders": [
             {"type": "defend", "x": 0, "y": 0},
             {"type": "attack", "x": 0, "y": 0},
-            {"type": "build", "schematic": "NAME", "x": 0, "y": 0, "rotation": 0}
+            {"type": "build", "schematic": "NAME", "x": 0, "y": 0, "rotation": 0},
+            {"type": "build", "schematic": "conveyor", "x": 0, "y": 0, "x2": 100, "y2": 100},
+            {"type": "produce", "unit": "mono"}
           ],
           "settings": {}
         }
 
         Coordinates are world PIXEL coordinates (not tile coords). Multiply tile coords by 8.
         Use an empty orders array when no new orders are needed.
-        Allowed order types: defend, attack, build, mine.
+        Allowed order types: defend, attack, build, mine, produce.
+        For "build" with conveyor/bridge/conduit: providing "x2" and "y2" will lay a connected line of tiles.
         For "mine": use schematic "copper", "lead", or "coal".
+        For "produce": unit can be "mono", "poly", "flare", or "dagger".
         """;
 
     private Prompt(){}
