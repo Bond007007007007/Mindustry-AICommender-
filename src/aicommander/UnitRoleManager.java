@@ -41,8 +41,9 @@ public class UnitRoleManager{
         // Search player team buildings for UnitFactory
         for(Building b : player.team().data().buildings){
             if(b instanceof mindustry.world.blocks.units.UnitFactory.UnitFactoryBuild factory){
-                for(int i = 0; i < factory.plans.size; i++){
-                    if(factory.plans.get(i).unit.name.equalsIgnoreCase(order.unitType)){
+                mindustry.world.blocks.units.UnitFactory block = (mindustry.world.blocks.units.UnitFactory)factory.block;
+                for(int i = 0; i < block.plans.size; i++){
+                    if(block.plans.get(i).unit.name.equalsIgnoreCase(order.unitType)){
                         factory.currentPlan = i;
                         Log.info("[AI Commander/Roles] Set factory at @,@ to produce @", factory.tileX(), factory.tileY(), order.unitType);
                         return;
