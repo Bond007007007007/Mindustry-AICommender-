@@ -88,13 +88,15 @@ val jarAndroid = tasks.register("jarAndroid"){
 
         //collect dependencies needed for desugaring
         val classpath = (configurations.compileClasspath.get().files +
-                configurations.runtimeClasspath.get().files +
-                File(platformRoot, "android.jar"))
+                configurations.runtimeClasspath.get().files)
+        val androidJar = File(platformRoot, "android.jar")
 
         val d8 = if(isWindows) "d8.bat" else "d8"
 
         val command = buildList{
             add(d8)
+            add("--lib")
+            add(androidJar.path)
             classpath.forEach{ addAll(listOf("--classpath", it.path)) }
             addAll(listOf("--min-api", "21"))
             addAll(listOf("--output", "${projectName}Android.jar"))
