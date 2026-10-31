@@ -42,7 +42,10 @@ public final class Prompt{
            {"type": "build", "schematic": "conveyor", "x": drillX, "y": drillY, "x2": coreX, "y2": coreY}
            (The game will automatically lay down the entire conveyor path and orient it towards the core!)
         5. Build defensive choke points facing "spawns": "copper-wall-large", "duo", "scatter" (anti-air), and "mender".
-        6. Place "combustion" power generators near coal and wire them with "power-node"s.
+           CRITICAL: Feed ammo (copper/lead) into your turrets via conveyors! Check "turrets" in state for ammo status.
+        6. Monitor "power" in state (produced, needed, batteryStored):
+           Place "combustion" power generators near coal and wire them with "power-node"s.
+           (Power nodes automatically discover and link to nearby power buildings in laser range!)
         7. Build "air-factory" and issue {"type": "produce", "unit": "mono"} to produce autonomous miner units!
 
         """;

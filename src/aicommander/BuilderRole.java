@@ -116,6 +116,9 @@ public class BuilderRole{
     public void update(){
         if(!state.isGame()) return;
 
+        // Auto-link any power nodes placed that have available link capacity
+        updatePowerGrid();
+
         // Drive the player unit to build if there are plans or construction blocks nearby
         updatePlayerBuilding();
 
@@ -154,6 +157,35 @@ public class BuilderRole{
             it.remove();
             queued.remove(Point2.pack(plan.tx(), plan.ty()));
             submitted++;
+        }
+    }
+
+    /**
+     * Periodically inspects team power nodes and connects unlinked generators, consumers,
+     * batteries, and neighboring power nodes within laser range.
+     */
+    private float lastPowerCheck;
+    private void updatePowerGrid(){
+        if(Time.time - lastPowerCheck < 120f) return; // every ~2 seconds
+        lastPowerCheck = Time.time;
+
+        Team team = player.team();
+        for(Building b : team.data().buildings){
+            if(b instanceof mindustry.world.blocks.power.PowerNode.PowerNodeBuild node){
+                mindustry.world.blocks.power.PowerNode block = (mindustry.world.blocks.power.PowerNode)node.block;
+                if(node.power.links.size < block.maxNodes){
+                    // Search nearby buildings within laserRange
+                    float maxDst = block.laserRange * tilesize;
+                    for(Building other : team.data().buildings){
+                        if(node.power.links.size >= block.maxNodes) break;
+                        if(other == node || other.power == null) continue;
+                        if(other.dst(node) <= maxDst && !node.power.links.contains(other.pos())){
+                            // Link node to other power building
+                            node.configure(other.pos());
+                        }
+                    }
+                }
+            }
         }
     }
 

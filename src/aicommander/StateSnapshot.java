@@ -43,11 +43,55 @@ public final class StateSnapshot{
 
         root.put("ores", ores(core));
         root.put("spawns", spawns(core));
+        root.put("power", power(team));
+        root.put("turrets", turrets(team));
         root.put("units", units(team));
         root.put("buildings", buildings(team));
         root.put("enemies", enemies(team));
 
         return root;
+    }
+
+    private static Jval power(Team team){
+        Jval out = Jval.newObject();
+        float produced = 0f;
+        float needed = 0f;
+        float batteryStored = 0f;
+        float batteryCapacity = 0f;
+
+        // Use a set of visited graphs so each power graph is counted once
+        Set<mindustry.world.blocks.power.PowerGraph> graphs = new HashSet<>();
+        for(Building b : team.data().buildings){
+            if(b.power != null && b.power.graph != null && graphs.add(b.power.graph)){
+                produced += b.power.graph.getPowerProduced();
+                needed += b.power.graph.getPowerNeeded();
+                batteryStored += b.power.graph.getBatteryStored();
+                batteryCapacity += b.power.graph.getBatteryCapacity();
+            }
+        }
+
+        out.put("produced", (double)Math.round(produced * 60f)); // power per sec
+        out.put("needed", (double)Math.round(needed * 60f));
+        out.put("balance", (double)Math.round((produced - needed) * 60f));
+        out.put("batteryStored", (double)Math.round(batteryStored));
+        out.put("batteryCapacity", (double)Math.round(batteryCapacity));
+        return out;
+    }
+
+    private static Jval turrets(Team team){
+        Jval list = Jval.newArray();
+        for(Building b : team.data().buildings){
+            if(b instanceof mindustry.world.blocks.defense.turrets.Turret.TurretBuild tb){
+                Jval t = Jval.newObject();
+                t.put("name", tb.block.name);
+                t.put("x", (double)tb.x);
+                t.put("y", (double)tb.y);
+                t.put("hasAmmo", tb.hasAmmo());
+                t.put("totalAmmo", tb.totalAmmo);
+                if(list.asArray().size < 20) list.add(t);
+            }
+        }
+        return list;
     }
 
     private static Jval ores(CoreBuild core){
