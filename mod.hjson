@@ -1,0 +1,8 @@
+displayName: "AI Commander"
+name: "ai-commander"
+author: "Bond007007007007"
+main: "aicommander.AICommanderMod"
+description: "An in-game AI commander for a single endless Mindustry survival match."
+version: "0.1.0"
+minGameVersion: "160.3"
+java: true
