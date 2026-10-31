@@ -1,6 +1,7 @@
 package aicommander;
 
 import arc.math.geom.Vec2;
+import arc.util.Time;
 import mindustry.ai.types.CommandAI;
 import mindustry.game.Team;
 import mindustry.gen.*;

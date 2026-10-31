@@ -2,6 +2,7 @@ package aicommander;
 
 import arc.*;
 import arc.scene.*;
+import arc.scene.event.Touchable;
 import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
@@ -51,14 +52,14 @@ public class Hud{
     /** Call once after ClientLoadEvent. */
     public void build(){
         root = new Table(Styles.black6);
-        root.touchable(Touchable.enabled);
+        root.touchable = Touchable.enabled;
 
         // ── Header ──────────────────────────────────────────────────────────
         root.table(Styles.black8, h -> {
             h.add("[accent]AI Commander[]").left().padLeft(6f).padRight(8f).growX();
             collapseBtn = h.button("[accent]▲[]", Styles.cleart, () -> {
                 collapsed = !collapsed;
-                bodyTable.visible(!collapsed);
+                bodyTable.visible = !collapsed;
                 collapseBtn.setText(collapsed ? "[accent]▼[]" : "[accent]▲[]");
                 root.pack();
                 repositionTopRight();
