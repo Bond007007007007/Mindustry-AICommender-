@@ -1,7 +1,6 @@
 package aicommander;
 
 import arc.math.geom.Vec2;
-import mindustry.ai.UnitCommand;
 import mindustry.ai.types.CommandAI;
 import mindustry.game.Team;
 import mindustry.gen.*;
@@ -51,10 +50,7 @@ public class ScoutRole{
             if(!(unit.controller() instanceof CommandAI ai)) continue;
             if(ai.targetPos != null) continue; // already moving
 
-            ai.command = UnitCommand.moveCommand;
-            if(ai.targetPos == null) ai.targetPos = new Vec2();
-            ai.targetPos.set(target.x, target.y);
-            ai.attackTarget = null;
+            ai.commandPosition(target.cpy());
             assigned++;
         }
     }

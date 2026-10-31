@@ -5,43 +5,31 @@ import arc.scene.*;
 import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
-import mindustry.gen.*;
 import mindustry.ui.*;
 
 import static mindustry.Vars.*;
 
 /**
- * Minimal HUD overlay for AI Commander.
+ * In-game HUD overlay for AI Commander.
  *
- * Layout (top-right corner, always on top of hudGroup):
- *
- *   ┌─────────────────────────────┬───┐
- *   │ [AI Commander]         [▲/▼]│
- *   ├─────────────────────────────┤   │
- *   │ Status : ACTIVE / BUSY / -- │   │  (collapsed: only header visible)
- *   │ Map    : ...                │   │
- *   │ Wave   : 12                 │   │
- *   │ Prompts: 5  Errors: 0       │   │
- *   │ Orders : 3                  │   │
- *   │ Reply  : 4s ago             │   │
- *   │ Msg    : (truncated line)   │   │
- *   │ Err    : (if any)           │   │
- *   ├─────────────────────────────┤   │
- *   │  [Start]  /  [Stop]         │   │
- *   └─────────────────────────────┴───┘
- *
- * All UI work happens on the main thread via Core.app.post().
- * update() is called from Trigger.update (main thread), so refreshes are safe there.
+ * Shows a collapsible panel in the top-right corner with:
+ *  - Status (ACTIVE / THINKING / STOPPED)
+ *  - Map, Wave, Stats, Orders, Reply age
+ *  - Role summary (build queue, defend/scout waypoints)
+ *  - Last message (truncated)
+ *  - Last error (if any)
+ *  - Start / Stop buttons
+ *  - Collapse toggle
  */
 public class Hud{
-    private static final float UPDATE_INTERVAL = 30f; // ticks (~0.5s at 60 fps)
+    private static final float UPDATE_INTERVAL = 30f;
     private static final int MSG_MAX_CHARS = 80;
     private static final int ERR_MAX_CHARS = 60;
 
     private final CommanderController ctrl;
 
-    // Scene nodes
     private Table root;
+    private Table bodyTable;
     private Label statusLabel;
     private Label mapLabel;
     private Label waveLabel;
@@ -51,36 +39,35 @@ public class Hud{
     private Label rolesLabel;
     private Label msgLabel;
     private Label errLabel;
-    private Table bodyTable;
-    private boolean collapsed = false;
+    private TextButton collapseBtn;
 
-    private float lastRefresh = -UPDATE_INTERVAL; // force first refresh
+    private boolean collapsed = false;
+    private float lastRefresh = -UPDATE_INTERVAL;
 
     public Hud(CommanderController ctrl){
         this.ctrl = ctrl;
     }
 
-    /** Called once after ClientLoadEvent. Builds the scene graph and adds it to hudGroup. */
+    /** Call once after ClientLoadEvent. */
     public void build(){
-        root = new Table(Styles.black3);
-        root.setFillParent(false);
-        root.touchable(arc.scene.Touchable.enabled);
-        root.visible(true);
+        root = new Table(Styles.black6);
+        root.touchable(Touchable.enabled);
 
-        // ── Header row ──────────────────────────────────────────────────────
-        Table header = root.row().get();
-        root.table(Styles.black3, h -> {
-            h.label(() -> "[accent]AI Commander[]").left().padLeft(6f).padRight(8f).growX();
-            h.button(this::toggleLabel, Styles.clearTransit, 28f, () -> {
+        // ── Header ──────────────────────────────────────────────────────────
+        root.table(Styles.black8, h -> {
+            h.add("[accent]AI Commander[]").left().padLeft(6f).padRight(8f).growX();
+            collapseBtn = h.button("[accent]▲[]", Styles.cleart, () -> {
                 collapsed = !collapsed;
                 bodyTable.visible(!collapsed);
-            }).size(28f).padRight(4f);
-        }).growX().pad(0f).row();
+                collapseBtn.setText(collapsed ? "[accent]▼[]" : "[accent]▲[]");
+                root.pack();
+                repositionTopRight();
+            }).size(32f).padRight(4f).get();
+        }).growX().row();
 
         // ── Body ─────────────────────────────────────────────────────────────
-        root.table(Styles.black3, body -> {
+        root.table(Styles.black6, body -> {
             bodyTable = body;
-
             body.defaults().left().padLeft(6f).padRight(6f);
 
             statusLabel = addRow(body, "Status", "");
@@ -92,38 +79,38 @@ public class Hud{
             rolesLabel  = addRow(body, "Roles",  "");
 
             body.row();
-            msgLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).wrap(true).get();
+            msgLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).get();
+            msgLabel.setWrap(true);
 
             body.row();
-            errLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).wrap(true).get();
+            errLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).get();
+            errLabel.setWrap(true);
 
             // ── Buttons ──────────────────────────────────────────────────────
             body.row();
             body.table(btn -> {
-                btn.button("[lime]Start[]", Styles.clearTransit, () -> {
+                btn.button("[lime]Start[]", Styles.cleart, () -> {
                     if(state.isGame()) ctrl.start();
                 }).pad(4f).size(80f, 32f);
-                btn.button("[scarlet]Stop[]", Styles.clearTransit, () -> {
+                btn.button("[scarlet]Stop[]", Styles.cleart, () -> {
                     ctrl.stop("manual");
                 }).pad(4f).size(80f, 32f);
             }).pad(4f).row();
-
         }).growX().row();
 
-        // ── Position: top-right ──────────────────────────────────────────────
         root.pack();
         ui.hudGroup.addChild(root);
         repositionTopRight();
     }
 
-    /** Called from Trigger.update on the main thread. */
+    /** Called every tick from Trigger.update (main thread). */
     public void update(){
         if(root == null) return;
         if(Time.time - lastRefresh < UPDATE_INTERVAL) return;
         refreshNow();
     }
 
-    /** Force an immediate refresh (e.g. after world load). */
+    /** Force-refresh labels (e.g. after world load). */
     public void refreshNow(){
         if(root == null) return;
         lastRefresh = Time.time;
@@ -131,39 +118,31 @@ public class Hud{
         repositionTopRight();
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Private ───────────────────────────────────────────────────────────────
 
     private void populate(){
         // Status
-        String status;
         if(!ctrl.isActive()){
-            status = "[gray]STOPPED[]";
+            statusLabel.setText("[gray]STOPPED[]");
         } else if(ctrl.isBusy()){
-            status = "[yellow]THINKING[]";
+            statusLabel.setText("[yellow]THINKING[]");
         } else {
-            status = "[lime]ACTIVE[]";
+            statusLabel.setText("[lime]ACTIVE[]");
         }
-        statusLabel.setText(status);
 
-        // Map / wave
         String map = ctrl.mapName();
         mapLabel.setText(map == null || map.isEmpty() ? "--" : map);
         waveLabel.setText(state.isGame() ? String.valueOf(state.wave) : "--");
-
-        // Counters
-        countsLabel.setText("prompts:" + ctrl.promptCount() + "  err:" + ctrl.errorCount());
+        countsLabel.setText("p:" + ctrl.promptCount() + " e:" + ctrl.errorCount());
         ordersLabel.setText(String.valueOf(ctrl.lastOrderCount()));
 
-        // Reply age
         long replyAt = ctrl.lastReplyAt();
         if(replyAt <= 0L){
             replyLabel.setText("--");
         } else {
-            long ago = (Time.millis() - replyAt) / 1000L;
-            replyLabel.setText(ago + "s ago");
+            replyLabel.setText((Time.millis() - replyAt) / 1000L + "s ago");
         }
 
-        // Role status
         if(ctrl.isActive()){
             UnitRoleManager roles = ctrl.roles();
             rolesLabel.setText("build:" + roles.builder().queueSize()
@@ -173,7 +152,6 @@ public class Hud{
             rolesLabel.setText("--");
         }
 
-        // Last message (single line, truncated)
         String msg = ctrl.lastMessage();
         if(msg == null || msg.isEmpty()){
             msgLabel.setText("");
@@ -182,7 +160,6 @@ public class Hud{
             msgLabel.setText("[lightgray]" + truncate(oneLine, MSG_MAX_CHARS) + "[]");
         }
 
-        // Last error
         String err = ctrl.lastError();
         if(err == null || err.isEmpty()){
             errLabel.setText("");
@@ -196,28 +173,19 @@ public class Hud{
     private void repositionTopRight(){
         if(root == null) return;
         float sw = Core.graphics.getWidth();
-        root.setPosition(sw - root.getWidth() - 8f,
-                         Core.graphics.getHeight() - root.getHeight() - 8f);
+        float sh = Core.graphics.getHeight();
+        root.setPosition(sw - root.getWidth() - 8f, sh - root.getHeight() - 8f);
     }
 
-    /** Text shown on the collapse toggle button. */
-    private String toggleLabel(){
-        return collapsed ? "[accent]▼[]" : "[accent]▲[]";
-    }
-
-    /**
-     * Adds a key-value row to the given table and returns the value Label
-     * so callers can update it later.
-     */
-    private static Label addRow(Table t, String key, String initialValue){
+    private static Label addRow(Table t, String key, String value){
         t.row();
         t.add("[gray]" + key + ":[] ").left();
-        Label val = t.add(initialValue).left().get();
+        Label val = t.add(value).left().get();
         return val;
     }
 
     private static String truncate(String s, int max){
         if(s.length() <= max) return s;
-        return s.substring(0, max) + "…";
+        return s.substring(0, max) + "...";
     }
 }

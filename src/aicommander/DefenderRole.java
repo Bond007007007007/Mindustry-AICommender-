@@ -1,7 +1,6 @@
 package aicommander;
 
 import arc.math.geom.Vec2;
-import mindustry.ai.UnitCommand;
 import mindustry.ai.types.CommandAI;
 import mindustry.game.Team;
 import mindustry.gen.*;
@@ -84,10 +83,7 @@ public class DefenderRole{
             if(bestIndex < 0) break;
 
             Vec2 wp = waypoints.get(bestIndex);
-            ai.command = UnitCommand.moveCommand;
-            if(ai.targetPos == null) ai.targetPos = new Vec2();
-            ai.targetPos.set(wp.x, wp.y);
-            ai.attackTarget = null;
+            ai.commandPosition(wp.cpy());
             assigned[bestIndex]++;
         }
     }
