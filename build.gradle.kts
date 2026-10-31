@@ -102,11 +102,16 @@ val jarAndroid = tasks.register("jarAndroid"){
         }
 
         //dex and desugar files - this requires d8 in your PATH
-        val exitCode = ProcessBuilder(command)
+        val process = ProcessBuilder(command)
             .directory(layout.buildDirectory.dir("libs").get().asFile)
-            .inheritIO()
+            .redirectErrorStream(true)
             .start()
-            .waitFor()
+
+        process.inputStream.bufferedReader().useLines { lines ->
+            lines.forEach { println("[d8] $it") }
+        }
+
+        val exitCode = process.waitFor()
 
         if(exitCode != 0) throw GradleException("d8 failed with exit code $exitCode")
     }
