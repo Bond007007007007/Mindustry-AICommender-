@@ -3,7 +3,7 @@ package aicommander;
 import arc.util.Log;
 import mindustry.gen.*;
 
-import java.util.List;
+import java.util.*;
 
 import static mindustry.Vars.*;
 
