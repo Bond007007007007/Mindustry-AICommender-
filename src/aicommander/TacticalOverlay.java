@@ -59,12 +59,13 @@ public class TacticalOverlay{
         // 3. Draw Construction queue previews
         BuilderRole bld = roles.builder();
         if(bld != null && bld.queueSize() > 0){
-            Lines.stroke(1f, Pal.accent.cpy().a(0.6f));
-            for(BuilderRole.PlannedBlock pb : bld.peekQueue(12)){
+            for(BuilderRole.PlannedBlock pb : bld.peekQueue(16)){
                 float px = pb.tx() * 8f;
                 float py = pb.ty() * 8f;
                 float size = pb.block().size * 8f;
+                Lines.stroke(1.2f, Pal.accent.cpy().a(0.7f));
                 Lines.rect(px - size / 2f + 4f, py - size / 2f + 4f, size, size);
+                Drawf.target(px, py, 4f, Pal.accent.cpy().a(0.5f));
             }
         }
 

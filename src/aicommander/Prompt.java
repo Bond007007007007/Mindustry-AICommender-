@@ -69,6 +69,7 @@ public final class Prompt{
         Use an empty orders array when no new orders are needed.
         Allowed order types: defend, attack, build, mine, produce.
         For "build" with conveyor/bridge/conduit: providing "x2" and "y2" will lay a connected line of tiles.
+        Available composite defense blueprints: "duo-bunker" (Duo surrounded by walls & router), "duo-battery-cluster", "scatter-nest", "drill-power-outpost".
         For "mine": use schematic "copper", "lead", or "coal".
         For "produce": unit can be "mono", "poly", "flare", or "dagger".
         """;

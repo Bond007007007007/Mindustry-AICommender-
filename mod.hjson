@@ -3,6 +3,6 @@ name: "ai-commander"
 author: "Bond007007007007"
 main: "aicommander.AICommanderMod"
 description: "High-level LLM Commander AI for Mindustry. Runs autonomous tactical roles, ore prospecting, conveyor line routing, automated power grid auto-linking, ammo telemetry, tactical combat squads, auto-fallback survival heuristics, in-world tactical overlays, and real-time HUD controls."
-version: "0.7.0"
+version: "0.8.0"
 minGameVersion: "160.3"
 java: true

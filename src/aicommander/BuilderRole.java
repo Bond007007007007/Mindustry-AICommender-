@@ -61,12 +61,19 @@ public class BuilderRole{
 
         int rotation = Math.max(0, Math.min(3, order.rotation));
 
-        long key = Point2.pack(tx, ty);
-        if(queued.contains(key)) return;
-        if(queue.size() >= MAX_QUEUE) return;
+        // Queue composite entries
+        for(SchematicLibrary.BlockEntry entry : spec.composite()){
+            int bx = tx + entry.dx();
+            int by = ty + entry.dy();
+            int rot = (rotation + entry.rotation()) % 4;
 
-        queue.addLast(new PlannedBlock(tx, ty, spec.block(), rotation));
-        queued.add(key);
+            long key = Point2.pack(bx, by);
+            if(queued.contains(key)) continue;
+            if(queue.size() >= MAX_QUEUE) break;
+
+            queue.addLast(new PlannedBlock(bx, by, entry.block(), rot));
+            queued.add(key);
+        }
     }
 
     /**
@@ -145,6 +152,13 @@ public class BuilderRole{
 
             Team team = player.team();
             Unit unit = player.unit();
+
+            // Deconfliction: if existing tile has an operational block of identical or larger tier, skip
+            if(tile.build != null && tile.build.team == team && tile.block() == plan.block()){
+                it.remove();
+                queued.remove(Point2.pack(plan.tx(), plan.ty()));
+                continue;
+            }
 
             // Submit construction site
             Call.beginPlace(unit, plan.block(), team, plan.tx(), plan.ty(), plan.rotation(), null);

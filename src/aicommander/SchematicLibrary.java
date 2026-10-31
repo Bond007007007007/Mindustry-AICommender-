@@ -33,10 +33,16 @@ import java.util.*;
  *   "kiln"             – kiln (ceramics / surge alloy precursor)
  */
 public final class SchematicLibrary{
-    public record BuildSpec(Block block){
+    public record BlockEntry(int dx, int dy, Block block, int rotation){}
+
+    public record BuildSpec(Block block, List<BlockEntry> composite){
+        public BuildSpec(Block block){
+            this(block, Collections.singletonList(new BlockEntry(0, 0, block, 0)));
+        }
+
         /** Human-readable description for the LLM prompt. */
         public String describe(){
-            return block.name;
+            return block != null ? block.name : "composite";
         }
     }
 
@@ -74,12 +80,47 @@ public final class SchematicLibrary{
         register("lancer",          Blocks.lancer);
         register("arc",             Blocks.arc);
         register("salvo",           Blocks.salvo);
+
+        // Composite tactical blueprints
+        registerComposite("duo-bunker", Arrays.asList(
+            new BlockEntry(0, 0, Blocks.duo, 0),
+            new BlockEntry(0, 1, Blocks.copperWall, 0),
+            new BlockEntry(1, 0, Blocks.copperWall, 0),
+            new BlockEntry(-1, 0, Blocks.copperWall, 0),
+            new BlockEntry(0, -1, Blocks.router, 0)
+        ));
+
+        registerComposite("duo-battery-cluster", Arrays.asList(
+            new BlockEntry(0, 0, Blocks.duo, 0),
+            new BlockEntry(1, 0, Blocks.duo, 0),
+            new BlockEntry(0, 1, Blocks.copperWall, 0),
+            new BlockEntry(1, 1, Blocks.copperWall, 0),
+            new BlockEntry(0, -1, Blocks.router, 0),
+            new BlockEntry(1, -1, Blocks.copperWall, 0)
+        ));
+
+        registerComposite("scatter-nest", Arrays.asList(
+            new BlockEntry(0, 0, Blocks.scatter, 0),
+            new BlockEntry(0, 2, Blocks.copperWallLarge, 0),
+            new BlockEntry(0, -2, Blocks.copperWallLarge, 0)
+        ));
+
+        registerComposite("drill-power-outpost", Arrays.asList(
+            new BlockEntry(0, 0, Blocks.mechanicalDrill, 0),
+            new BlockEntry(2, 0, Blocks.powerNode, 0)
+        ));
     }
 
     private SchematicLibrary(){}
 
     private static void register(String name, Block block){
         if(block != null) REGISTRY.put(name, new BuildSpec(block));
+    }
+
+    private static void registerComposite(String name, List<BlockEntry> entries){
+        if(entries != null && !entries.isEmpty()){
+            REGISTRY.put(name, new BuildSpec(entries.get(0).block(), entries));
+        }
     }
 
     /** Returns null if not found. */
