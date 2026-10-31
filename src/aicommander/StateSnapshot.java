@@ -42,6 +42,7 @@ public final class StateSnapshot{
         }
 
         root.put("ores", ores(core));
+        root.put("spawns", spawns(core));
         root.put("units", units(team));
         root.put("buildings", buildings(team));
         root.put("enemies", enemies(team));
@@ -63,6 +64,28 @@ public final class StateSnapshot{
                 o.put("y", (double)closest.worldy());
                 o.put("dist", (double)Math.round(core.dst(closest)));
                 list.add(o);
+            }
+        }
+        return list;
+    }
+
+    private static Jval spawns(CoreBuild core){
+        Jval list = Jval.newArray();
+        if(spawner == null) return list;
+
+        arc.struct.Seq<Tile> groundSpawns = spawner.getSpawns();
+        if(groundSpawns != null){
+            for(Tile tile : groundSpawns){
+                if(tile == null) continue;
+                Jval s = Jval.newObject();
+                float wx = tile.worldx();
+                float wy = tile.worldy();
+                s.put("x", (double)wx);
+                s.put("y", (double)wy);
+                if(core != null){
+                    s.put("distToCore", (double)Math.round(core.dst(wx, wy)));
+                }
+                list.add(s);
             }
         }
         return list;

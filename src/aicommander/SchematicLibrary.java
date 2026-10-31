@@ -68,6 +68,8 @@ public final class SchematicLibrary{
         register("air-factory",     Blocks.airFactory);
         register("ground-factory",  Blocks.groundFactory);
         register("repair-point",    Blocks.repairPoint);
+        register("mender",          Blocks.mender);
+        register("mend-projector",  Blocks.mendProjector);
         register("wave",            Blocks.wave);    // liquid source — useful for turret cooling
         register("lancer",          Blocks.lancer);
         register("arc",             Blocks.arc);

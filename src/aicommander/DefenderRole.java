@@ -55,7 +55,8 @@ public class DefenderRole{
         urgentThreat = false;
         Unit nearestEnemy = null;
         if(core != null){
-            nearestEnemy = Units.closestEnemy(team, core.x, core.y, 450f, u -> true);
+            // Find closest enemy to core or defenses
+            nearestEnemy = Units.closestEnemy(team, core.x, core.y, 650f, u -> true);
             if(nearestEnemy != null){
                 urgentThreat = true;
             }
@@ -64,27 +65,38 @@ public class DefenderRole{
         // Check player unit combat assistance if under attack
         Unit playerUnit = player.unit();
         if(playerUnit != null && playerUnit.isValid()){
-            Unit threatToPlayer = Units.closestEnemy(team, playerUnit.x, playerUnit.y, 250f, u -> true);
+            Unit threatToPlayer = Units.closestEnemy(team, playerUnit.x, playerUnit.y, 300f, u -> true);
             if(threatToPlayer != null){
                 urgentThreat = true;
-                // Aim and fire at enemy if in range
+                // Defensive kiting: keep optimal range while firing
                 if(playerUnit.hasWeapons()){
                     playerUnit.lookAt(threatToPlayer);
                     playerUnit.aim(threatToPlayer);
                     playerUnit.controlWeapons(true, true);
+
+                    float dist = playerUnit.dst(threatToPlayer);
+                    float idealDist = Math.max(80f, playerUnit.range() * 0.75f);
+                    if(dist < idealDist){
+                        // Back away from aggressive enemy
+                        float angle = playerUnit.angleTo(threatToPlayer) + 180f;
+                        playerUnit.movePref(arc.math.Angles.trnsx(angle, playerUnit.speed()), arc.math.Angles.trnsy(angle, playerUnit.speed()));
+                    }
                 }
             }
         }
 
-        // If urgent threat at core, rally defenders to the threat!
-        if(urgentThreat && nearestEnemy != null){
-            for(Unit unit : team.data().units){
-                if(unit == null || !unit.isValid() || unit == playerUnit) continue;
-                if(unit.controller() instanceof CommandAI ai){
-                    ai.commandPosition(new Vec2(nearestEnemy.x, nearestEnemy.y));
+        // If urgent threat at core or player, rally defenders to intercept
+        if(urgentThreat){
+            Unit target = nearestEnemy != null ? nearestEnemy : (playerUnit != null ? Units.closestEnemy(team, playerUnit.x, playerUnit.y, 350f, u -> true) : null);
+            if(target != null){
+                for(Unit unit : team.data().units){
+                    if(unit == null || !unit.isValid() || unit == playerUnit) continue;
+                    if(unit.controller() instanceof CommandAI ai){
+                        ai.commandPosition(new Vec2(target.x, target.y));
+                    }
                 }
+                return;
             }
-            return;
         }
 
         if(waypoints.isEmpty()) return;

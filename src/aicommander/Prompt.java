@@ -31,17 +31,19 @@ public final class Prompt{
           Builder   – places blocks from your "build" orders and drives player/builder units to construct them
           Defender  – holds positions from your "defend" orders, protects core, and engages nearby attackers
           Scout     – attacks/explores positions from your "attack" orders using native CommandAI
+          Repair    – automatically prioritizes and repairs damaged turrets, walls, and structures
           Logistics – gathers copper/lead via "mine" orders or automatically mines to supply the core when idle
 
-        Early Game Bootstrapping Strategy:
-        1. Look at "ores" in the state to find coordinates of closest copper, lead, and coal.
-        2. Place a mechanical drill ("copper-drill") on the ore coordinates.
-        3. Connect the drill to the core using a conveyor line order:
+        Early Game Bootstrapping & Tactical Defense Strategy:
+        1. Check "spawns" in state: know where enemy waves spawn and their distance to your core!
+        2. Look at "ores" in state to find closest copper, lead, and coal.
+        3. Place a mechanical drill ("copper-drill") on the ore coordinates.
+        4. Connect the drill to the core using a conveyor line order:
            {"type": "build", "schematic": "conveyor", "x": drillX, "y": drillY, "x2": coreX, "y2": coreY}
            (The game will automatically lay down the entire conveyor path and orient it towards the core!)
-        4. Build "duo" turrets near the defense perimeter and feed them copper via conveyors.
-        5. Place "combustion" power generators near coal and wire them with "power-node"s.
-        6. Build "air-factory" and issue {"type": "produce", "unit": "mono"} to produce autonomous miner units!
+        5. Build defensive choke points facing "spawns": "copper-wall-large", "duo", "scatter" (anti-air), and "mender".
+        6. Place "combustion" power generators near coal and wire them with "power-node"s.
+        7. Build "air-factory" and issue {"type": "produce", "unit": "mono"} to produce autonomous miner units!
 
         """;
 

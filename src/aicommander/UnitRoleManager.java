@@ -13,12 +13,14 @@ import static mindustry.Vars.*;
  * - DefenderRole: manages defensive rally points & emergency combat response
  * - ScoutRole: sends exploratory/assault groups
  * - LogisticsRole: handles auto-mining & item logistics when builders are idle
+ * - RepairRole: actively seeks and repairs damaged player buildings
  */
 public class UnitRoleManager{
     private final BuilderRole builder = new BuilderRole();
     private final DefenderRole defender = new DefenderRole();
     private final ScoutRole scout = new ScoutRole();
     private final LogisticsRole logistics = new LogisticsRole();
+    private final RepairRole repair = new RepairRole();
 
     public void applyOrders(List<Order> orders){
         for(Order order : orders){
@@ -62,8 +64,12 @@ public class UnitRoleManager{
         boolean buildingBusy = builder.queueSize() > 0 || (player.unit() != null && player.unit().buildPlan() != null);
         boolean combatBusy = defender.isUrgentThreat();
 
-        // If not busy building or fighting, perform autonomous logistics / mining
-        logistics.update(buildingBusy, combatBusy);
+        // If not busy building or fighting, prioritize repairing damaged defenses
+        repair.update(buildingBusy, combatBusy);
+        boolean repairBusy = repair.hasRepairTarget();
+
+        // If not busy building, fighting, or repairing, perform autonomous logistics / mining
+        logistics.update(buildingBusy || repairBusy, combatBusy);
     }
 
     public void clear(){
@@ -71,10 +77,12 @@ public class UnitRoleManager{
         defender.clear();
         scout.clear();
         logistics.clear();
+        repair.clear();
     }
 
     public BuilderRole builder(){ return builder; }
     public DefenderRole defender(){ return defender; }
     public ScoutRole scout(){ return scout; }
     public LogisticsRole logistics(){ return logistics; }
+    public RepairRole repair(){ return repair; }
 }
