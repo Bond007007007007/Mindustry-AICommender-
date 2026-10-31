@@ -35,6 +35,7 @@ public class CommanderController{
 
     private final UnitRoleManager roles = new UnitRoleManager();
     private final PostMatchReview review = new PostMatchReview();
+    private final FallbackAdvisor fallback = new FallbackAdvisor();
 
     private ModelClient client;
     private Fi logFile;
@@ -164,6 +165,7 @@ public class CommanderController{
         }
 
         roles.update();
+        fallback.update(this, roles);
 
         if(active && !busy && client != null && Time.time - lastPrompt >= Math.max(5, Settings.interval())){
             askCommander();
@@ -207,6 +209,10 @@ public class CommanderController{
                 errorCount++;
                 lastError = error.getClass().getSimpleName() + ": " + safeMessage(error);
                 log("error #" + call + ": " + lastError);
+                // Invalidate session if session was rejected or server crashed
+                if(lastError.contains("404") || lastError.contains("Connection refused") || lastError.contains("400")){
+                    sessionId = null;
+                }
             }finally{
                 busy = false;
             }

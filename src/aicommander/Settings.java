@@ -8,6 +8,7 @@ import mindustry.ui.dialogs.SettingsMenuDialog.*;
 public final class Settings{
     public static final String ENABLED = "ai-commander.enabled";
     public static final String AUTO_START = "ai-commander.auto-start";
+    public static final String AUTO_FALLBACK = "ai-commander.auto-fallback";
     public static final String BASE_URL = "ai-commander.base-url";
     public static final String USERNAME = "ai-commander.username";
     public static final String PASSWORD = "ai-commander.password";
@@ -25,8 +26,9 @@ public final class Settings{
     private static void build(SettingsTable table){
         table.checkPref(ENABLED, true);
         table.checkPref(AUTO_START, true);
-        table.textPref(BASE_URL, "http://127.0.0.1:4098");
-        table.textPref(USERNAME, "");
+        table.checkPref(AUTO_FALLBACK, true);
+        table.textPref(BASE_URL, "http://127.0.0.1:4097");
+        table.textPref(USERNAME, "opencode");
         table.textPref(PASSWORD, "");
         table.textPref(PROVIDER, "opencode");
         table.textPref(MODEL, "deepseek-v4.1-flash-free");
@@ -41,12 +43,16 @@ public final class Settings{
         return Core.settings.getBool(AUTO_START, true);
     }
 
+    public static boolean autoFallback(){
+        return Core.settings.getBool(AUTO_FALLBACK, true);
+    }
+
     public static String baseUrl(){
-        return trimSlash(Core.settings.getString(BASE_URL, "http://127.0.0.1:4098"));
+        return trimSlash(Core.settings.getString(BASE_URL, "http://127.0.0.1:4097"));
     }
 
     public static String username(){
-        return Core.settings.getString(USERNAME, "");
+        return Core.settings.getString(USERNAME, "opencode");
     }
 
     public static String password(){

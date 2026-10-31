@@ -28,6 +28,7 @@ public class DefenderRole{
     private static final float TICK_INTERVAL = 30f; // ~0.5s
 
     private final List<Vec2> waypoints = new ArrayList<>();
+    private final SquadManager squadManager = new SquadManager();
     private float lastTick;
     private boolean urgentThreat = false;
 
@@ -85,9 +86,13 @@ public class DefenderRole{
             }
         }
 
+        // Update tactical combat squads with priority threat
+        Unit squadTarget = nearestEnemy != null ? nearestEnemy : (playerUnit != null ? Units.closestEnemy(team, playerUnit.x, playerUnit.y, 350f, u -> true) : null);
+        squadManager.update(urgentThreat, squadTarget);
+
         // If urgent threat at core or player, rally defenders to intercept
         if(urgentThreat){
-            Unit target = nearestEnemy != null ? nearestEnemy : (playerUnit != null ? Units.closestEnemy(team, playerUnit.x, playerUnit.y, 350f, u -> true) : null);
+            Unit target = squadTarget;
             if(target != null){
                 for(Unit unit : team.data().units){
                     if(unit == null || !unit.isValid() || unit == playerUnit) continue;
@@ -143,7 +148,12 @@ public class DefenderRole{
 
     public void clear(){
         waypoints.clear();
+        squadManager.clear();
         urgentThreat = false;
+    }
+
+    public SquadManager squadManager(){
+        return squadManager;
     }
 
     public int waypointCount(){

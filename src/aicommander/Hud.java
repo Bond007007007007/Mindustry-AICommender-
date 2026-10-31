@@ -146,7 +146,9 @@ public class Hud{
 
         if(ctrl.isActive()){
             UnitRoleManager roles = ctrl.roles();
+            int combatUnits = roles.defender().squadManager().totalCombatUnits();
             rolesLabel.setText("bld:" + roles.builder().queueSize()
+                + " sqd:" + combatUnits
                 + " def:" + roles.defender().waypointCount()
                 + " sct:" + roles.scout().waypointCount()
                 + (roles.defender().isUrgentThreat() ? " [scarlet]!ALERT![]" : ""));
