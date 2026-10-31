@@ -48,6 +48,7 @@ public class Hud{
     private Label countsLabel;
     private Label ordersLabel;
     private Label replyLabel;
+    private Label rolesLabel;
     private Label msgLabel;
     private Label errLabel;
     private Table bodyTable;
@@ -88,6 +89,7 @@ public class Hud{
             countsLabel = addRow(body, "Stats",  "");
             ordersLabel = addRow(body, "Orders", "");
             replyLabel  = addRow(body, "Reply",  "");
+            rolesLabel  = addRow(body, "Roles",  "");
 
             body.row();
             msgLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).wrap(true).get();
@@ -159,6 +161,16 @@ public class Hud{
         } else {
             long ago = (Time.millis() - replyAt) / 1000L;
             replyLabel.setText(ago + "s ago");
+        }
+
+        // Role status
+        if(ctrl.isActive()){
+            UnitRoleManager roles = ctrl.roles();
+            rolesLabel.setText("build:" + roles.builder().queueSize()
+                + " def:" + roles.defender().waypointCount()
+                + " scout:" + roles.scout().waypointCount());
+        } else {
+            rolesLabel.setText("--");
         }
 
         // Last message (single line, truncated)

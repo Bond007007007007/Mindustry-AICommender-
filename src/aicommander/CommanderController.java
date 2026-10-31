@@ -33,9 +33,13 @@ public class CommanderController{
     private volatile String snapshotJson = "{}";
     private volatile String sessionId;
 
+    private final UnitRoleManager roles = new UnitRoleManager();
+    private final PostMatchReview review = new PostMatchReview();
+
     private ModelClient client;
     private Fi logFile;
     private String mapName = "";
+    private int finalWave;
     private float lastUpdate;
     private float lastPrompt;
     private float lastCoreHealth = -1f;
@@ -117,6 +121,8 @@ public class CommanderController{
         openLog();
         snapshotJson = snapshotWithEvents().toString();
         log("started on " + mapName + " at wave " + state.wave);
+        review.reset();
+        finalWave = state.wave;
         askCommander();
     }
 
@@ -126,6 +132,10 @@ public class CommanderController{
         busy = false;
         if(wasActive){
             log("stopped: " + reason);
+            if(reason.contains("game over")){
+                review.send(this, finalWave);
+            }
+            roles.clear();
         }
     }
 
@@ -150,7 +160,10 @@ public class CommanderController{
 
         if(state.wave != lastWave){
             lastWave = state.wave;
+            finalWave = state.wave;
         }
+
+        roles.update();
 
         if(active && !busy && client != null && Time.time - lastPrompt >= Math.max(5, Settings.interval())){
             askCommander();
@@ -183,6 +196,12 @@ public class CommanderController{
                 lastReplyAt = Time.millis();
                 lastError = "";
                 log("reply #" + call + " in " + (lastReplyAt - started) + "ms: " + oneLine(response.message));
+
+                // Dispatch orders to role system (must happen on main thread).
+                if(!response.orders.isEmpty()){
+                    final CommanderResponse r = response;
+                    arc.Core.app.post(() -> roles.applyOrders(r.orders));
+                }
             }catch(Throwable error){
                 lastReplyAt = Time.millis();
                 errorCount++;
@@ -297,5 +316,9 @@ public class CommanderController{
 
     public String mapName(){
         return mapName;
+    }
+
+    public UnitRoleManager roles(){
+        return roles;
     }
 }

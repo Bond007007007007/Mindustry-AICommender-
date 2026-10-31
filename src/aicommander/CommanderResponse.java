@@ -2,14 +2,21 @@ package aicommander;
 
 import arc.util.serialization.Jval;
 
+import java.util.List;
+
+/**
+ * Extended parse of the LLM JSON response, now including typed Order list.
+ */
 public final class CommanderResponse{
     public final String message;
+    public final List<Order> orders;
     public final int orderCount;
     public final String raw;
 
-    private CommanderResponse(String message, int orderCount, String raw){
+    private CommanderResponse(String message, List<Order> orders, String raw){
         this.message = message;
-        this.orderCount = orderCount;
+        this.orders = orders;
+        this.orderCount = orders.size();
         this.raw = raw;
     }
 
@@ -21,9 +28,10 @@ public final class CommanderResponse{
         }
 
         String message = root.getString("message", "");
-        Jval orders = root.get("orders");
-        int count = orders != null && orders.isArray() ? orders.asArray().size : 0;
-        return new CommanderResponse(message, count, text);
+        Jval ordersNode = root.get("orders");
+        List<Order> orders = Order.parseAll(ordersNode);
+
+        return new CommanderResponse(message, orders, text);
     }
 
     private static String extractJson(String text){
