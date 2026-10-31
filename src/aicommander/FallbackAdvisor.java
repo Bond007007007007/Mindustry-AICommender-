@@ -36,9 +36,9 @@ public class FallbackAdvisor{
             Tile copperOre = indexer.findClosestOre(core.x, core.y, Items.copper);
             if(copperOre != null && copper >= 25){
                 if(copperOre.build == null && copperOre.block() == Blocks.air){
-                    roles.builder().addOrder(Order.build("copper-drill", copperOre.x, copperOre.y, 0, null));
+                    roles.builder().addOrder(Order.build("copper-drill", copperOre.worldx(), copperOre.worldy(), 0));
                     // Route conveyor back toward core
-                    roles.builder().addLine("conveyor", copperOre.x, copperOre.y, (int)(core.x / 8), (int)(core.y / 8));
+                    roles.builder().addOrder(Order.buildLine("conveyor", copperOre.worldx(), copperOre.worldy(), core.x, core.y));
                     Log.info("[AI Commander/Fallback] Queued basic copper drill & conveyor line.");
                     return;
                 }
@@ -47,8 +47,8 @@ public class FallbackAdvisor{
             // Check if lead drill exists
             Tile leadOre = indexer.findClosestOre(core.x, core.y, Items.lead);
             if(leadOre != null && copper >= 25 && leadOre.build == null && leadOre.block() == Blocks.air){
-                roles.builder().addOrder(Order.build("copper-drill", leadOre.x, leadOre.y, 0, null));
-                roles.builder().addLine("conveyor", leadOre.x, leadOre.y, (int)(core.x / 8), (int)(core.y / 8));
+                roles.builder().addOrder(Order.build("copper-drill", leadOre.worldx(), leadOre.worldy(), 0));
+                roles.builder().addOrder(Order.buildLine("conveyor", leadOre.worldx(), leadOre.worldy(), core.x, core.y));
                 Log.info("[AI Commander/Fallback] Queued basic lead drill & conveyor line.");
                 return;
             }
@@ -62,21 +62,21 @@ public class FallbackAdvisor{
                 if(duoCount < 3){
                     // Place Duo between core and nearest spawn
                     Tile spawn = spawner.getSpawns().firstOpt();
-                    int targetX = (int)(core.x / 8);
-                    int targetY = (int)(core.y / 8);
+                    float targetX = core.x;
+                    float targetY = core.y;
                     if(spawn != null){
-                        float dx = spawn.x - core.x / 8;
-                        float dy = spawn.y - core.y / 8;
+                        float dx = spawn.worldx() - core.x;
+                        float dy = spawn.worldy() - core.y;
                         float len = (float)Math.sqrt(dx * dx + dy * dy);
                         if(len > 0){
-                            targetX += Math.round((dx / len) * (6 + duoCount * 2));
-                            targetY += Math.round((dy / len) * (6 + duoCount * 2));
+                            targetX += (dx / len) * (48f + duoCount * 16f);
+                            targetY += (dy / len) * (48f + duoCount * 16f);
                         }
                     }else{
-                        targetX += 6 + duoCount * 2;
+                        targetX += 48f + duoCount * 16f;
                     }
-                    roles.builder().addOrder(Order.build("duo", targetX, targetY, 0, null));
-                    roles.builder().addOrder(Order.build("copper-wall", targetX + 1, targetY, 0, null));
+                    roles.builder().addOrder(Order.build("duo", targetX, targetY, 0));
+                    roles.builder().addOrder(Order.build("copper-wall", targetX + 8f, targetY, 0));
                     Log.info("[AI Commander/Fallback] Queued defensive Duo turret.");
                     return;
                 }

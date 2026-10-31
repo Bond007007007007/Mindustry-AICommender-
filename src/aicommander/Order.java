@@ -67,6 +67,14 @@ public final class Order{
         return new Order(type, x, y, x2, y2, schematic, rotation, unitType, raw);
     }
 
+    public static Order build(String schematic, float x, float y, int rotation){
+        return new Order(Type.build, x, y, 0, 0, schematic, rotation, "", "");
+    }
+
+    public static Order buildLine(String schematic, float x1, float y1, float x2, float y2){
+        return new Order(Type.build, x1, y1, x2, y2, schematic, 0, "", "");
+    }
+
     public static List<Order> parseAll(Jval ordersArray){
         List<Order> result = new ArrayList<>();
         if(ordersArray == null || !ordersArray.isArray()) return result;
