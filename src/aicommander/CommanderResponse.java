@@ -1,20 +1,21 @@
 package aicommander;
 
 import arc.util.serialization.Jval;
-
 import java.util.List;
 
 /**
- * Extended parse of the LLM JSON response, now including typed Order list.
+ * Extended parse of the LLM JSON response, parsing Doctrine, directives, and status report.
  */
 public final class CommanderResponse{
     public final String message;
+    public final Doctrine doctrine;
     public final List<Order> orders;
     public final int orderCount;
     public final String raw;
 
-    private CommanderResponse(String message, List<Order> orders, String raw){
+    private CommanderResponse(String message, Doctrine doctrine, List<Order> orders, String raw){
         this.message = message;
+        this.doctrine = doctrine;
         this.orders = orders;
         this.orderCount = orders.size();
         this.raw = raw;
@@ -27,11 +28,10 @@ public final class CommanderResponse{
             throw new IllegalArgumentException("model response is not a JSON object");
         }
 
-        String message = root.getString("message", "");
-        Jval ordersNode = root.get("orders");
-        List<Order> orders = Order.parseAll(ordersNode);
+        Doctrine doc = Doctrine.parse(root, text);
+        String message = doc.reasoning;
 
-        return new CommanderResponse(message, orders, text);
+        return new CommanderResponse(message, doc, doc.buildDirectives, text);
     }
 
     private static String extractJson(String text){
@@ -46,3 +46,4 @@ public final class CommanderResponse{
         throw new IllegalArgumentException("model response contains no JSON object");
     }
 }
+

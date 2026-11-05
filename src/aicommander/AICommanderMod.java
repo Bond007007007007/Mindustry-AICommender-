@@ -7,7 +7,7 @@ import mindustry.mod.*;
 
 public class AICommanderMod extends Mod{
     public static final String NAME = "ai-commander";
-    public static final String VERSION = "0.7.0";
+    public static final String VERSION = "0.12.0";
 
     private CommanderController controller;
     private Hud hud;

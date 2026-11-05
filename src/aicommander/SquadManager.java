@@ -9,6 +9,7 @@ import mindustry.game.Team;
 import mindustry.gen.*;
 
 import java.util.*;
+import arc.func.Boolf;
 
 import static mindustry.Vars.*;
 
@@ -35,6 +36,9 @@ public class SquadManager{
         public final List<Unit> members = new ArrayList<>();
         public Vec2 targetPos = null;
         public Unit attackTarget = null;
+        private Vec2 lastTargetPos = null;
+        private Unit lastAttackTarget = null;
+        private int lastMemberCount = -1;
 
         public Squad(SquadType type){
             this.type = type;
@@ -43,6 +47,10 @@ public class SquadManager{
         public void clear(){
             members.clear();
             attackTarget = null;
+            targetPos = null;
+            lastTargetPos = null;
+            lastAttackTarget = null;
+            lastMemberCount = -1;
         }
 
         public int size(){
@@ -52,6 +60,15 @@ public class SquadManager{
 
     private final Map<SquadType, Squad> squads = new EnumMap<>(SquadType.class);
     private float lastSquadUpdate;
+    private Doctrine.DefenseFocus defenseFocus = Doctrine.DefenseFocus.BALANCED;
+
+    public void setDefenseFocus(Doctrine.DefenseFocus focus){
+        this.defenseFocus = focus == null ? Doctrine.DefenseFocus.BALANCED : focus;
+    }
+
+    public Doctrine.DefenseFocus getDefenseFocus(){
+        return defenseFocus;
+    }
 
     public SquadManager(){
         for(SquadType t : SquadType.values()){
@@ -92,13 +109,24 @@ public class SquadManager{
         for(Squad squad : squads.values()){
             if(squad.members.isEmpty()) continue;
 
-            // Priority 1: Urgent threat
-            if(urgentThreat && priorityThreat != null && stance != Stance.retreat){
+            // Priority 1: retreat overrides offensive orders and falls back to core.
+            if(stance == Stance.retreat){
+                squad.attackTarget = null;
+                if(core != null){
+                    squad.targetPos = new Vec2(core.x, core.y);
+                }else if(playerUnit != null && playerUnit.isValid()){
+                    squad.targetPos = new Vec2(playerUnit.x, playerUnit.y);
+                }else{
+                    squad.targetPos = new Vec2(world.width() * tilesize / 2f, world.height() * tilesize / 2f);
+                }
+            }else if(urgentThreat && priorityThreat != null){
                 squad.targetPos = new Vec2(priorityThreat.x, priorityThreat.y);
                 squad.attackTarget = priorityThreat;
             }else if(stance == Stance.assault){
-                // Hunt down closest enemy or enemy spawn point
-                Unit closestEnemy = Units.closestEnemy(team, core != null ? core.x : 0f, core != null ? core.y : 0f, 2000f, u -> true);
+                // Hunt down the closest focused enemy; avoid pulling the army across the map.
+                float cx = core != null ? core.x : 0f;
+                float cy = core != null ? core.y : 0f;
+                Unit closestEnemy = selectTarget(team, cx, cy, 1400f);
                 if(closestEnemy != null){
                     squad.targetPos = new Vec2(closestEnemy.x, closestEnemy.y);
                     squad.attackTarget = closestEnemy;
@@ -146,24 +174,71 @@ public class SquadManager{
         return rallyPoint;
     }
 
+    private Unit selectTarget(Team team, float x, float y, float range){
+        Boolf<Unit> preferred = focusPredicate();
+        if(preferred != null){
+            Unit focused = Units.closestEnemy(team, x, y, range, preferred);
+            if(focused != null) return focused;
+        }
+        return Units.closestEnemy(team, x, y, range, u -> true);
+    }
+
+    private Boolf<Unit> focusPredicate(){
+        if(defenseFocus == null) return null;
+        return switch(defenseFocus){
+            case ANTI_AIR -> Unit::isFlying;
+            case GROUND_SWARM -> u -> !u.isFlying();
+            case HEAVY_ARMOR -> u -> u.maxHealth() >= 700f;
+            default -> null;
+        };
+    }
+
     private void dispatchSquad(Squad squad){
         Vec2 center = squad.targetPos;
         if(center == null) return;
 
-        int i = 0;
         int total = squad.members.size();
-        float radius = Math.min(80f, 16f + total * 4f);
+        boolean changed = squad.lastTargetPos == null
+            || squad.lastTargetPos.dst(center) > 24f
+            || squad.lastAttackTarget != squad.attackTarget
+            || squad.lastMemberCount != total;
+        if(!changed) return;
+
+        squad.lastTargetPos = center.cpy();
+        squad.lastAttackTarget = squad.attackTarget;
+        squad.lastMemberCount = total;
+
+        int i = 0;
+        float radius = formationRadius(squad.type, total);
+        float offset = formationAngleOffset(squad.type);
 
         for(Unit unit : squad.members){
             if(unit.controller() instanceof CommandAI ai){
-                // Form a loose formation around target
-                float angle = (360f / Math.max(1, total)) * i;
+                // Form a loose formation around target, with per-squad spacing.
+                float angle = offset + (360f / Math.max(1, total)) * i;
                 float tx = center.x + arc.math.Angles.trnsx(angle, radius);
                 float ty = center.y + arc.math.Angles.trnsy(angle, radius);
                 ai.commandPosition(new Vec2(tx, ty));
             }
             i++;
         }
+    }
+
+    /** Air squads spread wide, ground squads stay tight, support sits behind. */
+    private float formationRadius(SquadType type, int total){
+        return switch(type){
+            case air -> Math.min(110f, 40f + total * 8f);
+            case ground -> Math.min(84f, 24f + total * 5f);
+            case support -> Math.min(96f, 32f + total * 6f);
+        };
+    }
+
+    private float formationAngleOffset(SquadType type){
+        return switch(type){
+            case air -> 0f;
+            case ground -> 45f;
+            case support -> 90f;
+        };
     }
 
     public int totalCombatUnits(){

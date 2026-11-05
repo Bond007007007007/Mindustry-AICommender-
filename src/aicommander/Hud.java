@@ -33,11 +33,15 @@ public class Hud{
     private Table bodyTable;
     private Label statusLabel;
     private Label mapLabel;
+    private Label endpointLabel;
+    private Label linkLabel;
     private Label waveLabel;
     private Label countsLabel;
+    private Label queueLabel;
     private Label ordersLabel;
     private Label replyLabel;
     private Label rolesLabel;
+    private Label docLabel;
     private Label msgLabel;
     private Label errLabel;
     private TextButton collapseBtn;
@@ -73,11 +77,15 @@ public class Hud{
 
             statusLabel = addRow(body, "Status", "");
             mapLabel    = addRow(body, "Map",    "");
+            endpointLabel = addRow(body, "AI",   "");
+            linkLabel   = addRow(body, "Link",   "");
             waveLabel   = addRow(body, "Wave",   "");
             countsLabel = addRow(body, "Stats",  "");
+            queueLabel  = addRow(body, "Queue",  "");
             ordersLabel = addRow(body, "Orders", "");
             replyLabel  = addRow(body, "Reply",  "");
             rolesLabel  = addRow(body, "Roles",  "");
+            docLabel    = addRow(body, "Doctrine", "");
 
             body.row();
             msgLabel = body.add("").left().padLeft(6f).padRight(6f).maxWidth(220f).get();
@@ -143,11 +151,44 @@ public class Hud{
 
         String map = ctrl.mapName();
         mapLabel.setText(map == null || map.isEmpty() ? "--" : map);
-        waveLabel.setText(state.isGame() ? String.valueOf(state.wave) : "--");
+        endpointLabel.setText(Settings.baseUrl() + " / " + Settings.model());
+
+        String err = ctrl.lastError();
+        long replyAt = ctrl.lastReplyAt();
+        String link;
+        if(!ctrl.isActive()){
+            link = "[gray]idle[]";
+        }else if(err != null && (err.contains("Connection refused") || err.contains("UnknownHost")
+            || err.contains("ConnectException") || err.contains("NoRouteToHost"))){
+            link = "[scarlet]OFFLINE[]";
+        }else if(err != null && (err.contains("timeout") || err.contains("Timeout") || err.contains("timed out"))){
+            link = "[orange]TIMEOUT[]";
+        }else if(ctrl.isBusy()){
+            link = "[yellow]WAITING[]";
+        }else if(replyAt > 0L && Time.millis() - replyAt < 120_000L){
+            link = "[lime]OK[]";
+        }else{
+            link = "[gray]IDLE[]";
+        }
+        if(ctrl.isActive()){
+            long latency = ctrl.lastLatencyMs();
+            link += " p:" + ctrl.promptCount() + " e:" + ctrl.errorCount()
+                + (latency >= 0L ? " " + latency + "ms" : "");
+        }
+        linkLabel.setText(link);
+
+        if(state.isGame()){
+            int nextIn = Math.max(0, Math.round(state.wavetime / 60f));
+            waveLabel.setText(state.wave + " (" + nextIn + "s)");
+        }else{
+            waveLabel.setText("--");
+        }
         countsLabel.setText("p:" + ctrl.promptCount() + " e:" + ctrl.errorCount());
+        queueLabel.setText(ctrl.isActive()
+            ? ctrl.roles().builder().queueSize() + " bld / " + ctrl.lastOrderCount() + " dir"
+            : "--");
         ordersLabel.setText(String.valueOf(ctrl.lastOrderCount()));
 
-        long replyAt = ctrl.lastReplyAt();
         if(replyAt <= 0L){
             replyLabel.setText("--");
         } else {
@@ -167,6 +208,14 @@ public class Hud{
             rolesLabel.setText("--");
         }
 
+        Doctrine doc = ctrl.currentDoctrine();
+        if(ctrl.isActive() && doc != null){
+            docLabel.setText(doc.posture + "/" + doc.defenseFocus
+                + " [" + doc.squadStance + "]");
+        } else {
+            docLabel.setText("--");
+        }
+
         String msg = ctrl.lastMessage();
         if(msg == null || msg.isEmpty()){
             msgLabel.setText("");
@@ -175,7 +224,6 @@ public class Hud{
             msgLabel.setText("[lightgray]" + truncate(oneLine, MSG_MAX_CHARS) + "[]");
         }
 
-        String err = ctrl.lastError();
         if(err == null || err.isEmpty()){
             errLabel.setText("");
         } else {

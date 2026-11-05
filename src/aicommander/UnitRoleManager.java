@@ -21,6 +21,17 @@ public class UnitRoleManager{
     private final ScoutRole scout = new ScoutRole();
     private final LogisticsRole logistics = new LogisticsRole();
     private final RepairRole repair = new RepairRole();
+    private Doctrine doctrine = Doctrine.defaultDoctrine();
+
+    public void applyDoctrine(Doctrine doc){
+        if(doc == null) return;
+        this.doctrine = doc;
+        logistics.applyDoctrine(doc);
+        defender.applyDoctrine(doc);
+        builder.applyDoctrine(doc);
+        Log.info("[AI Commander/Roles] Applied doctrine: posture=@, defense=@, squadStance=@",
+            doc.posture, doc.defenseFocus, doc.squadStance);
+    }
 
     public void applyOrders(List<Order> orders){
         for(Order order : orders){
@@ -71,11 +82,11 @@ public class UnitRoleManager{
     public void update(){
         builder.update();
         defender.update();
-        scout.update();
+        boolean combatBusy = defender.isUrgentThreat();
+        scout.update(combatBusy);
 
         // Check if player unit is busy building or fighting
         boolean buildingBusy = builder.queueSize() > 0 || (player.unit() != null && player.unit().buildPlan() != null);
-        boolean combatBusy = defender.isUrgentThreat();
 
         // If not busy building or fighting, prioritize repairing damaged defenses
         repair.update(buildingBusy, combatBusy);
@@ -98,4 +109,5 @@ public class UnitRoleManager{
     public ScoutRole scout(){ return scout; }
     public LogisticsRole logistics(){ return logistics; }
     public RepairRole repair(){ return repair; }
+    public Doctrine doctrine(){ return doctrine; }
 }

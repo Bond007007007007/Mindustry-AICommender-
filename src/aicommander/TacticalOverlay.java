@@ -5,7 +5,10 @@ import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
 import arc.util.*;
+import mindustry.content.Items;
+import mindustry.gen.Unit;
 import mindustry.graphics.*;
+import mindustry.type.Item;
 
 import static mindustry.Vars.*;
 
@@ -16,7 +19,13 @@ import static mindustry.Vars.*;
  * - Queued conveyor/schematic construction vectors
  */
 public class TacticalOverlay{
+    private static final Item[] ORE_ITEMS = {
+        Items.copper, Items.lead, Items.coal, Items.sand, Items.titanium
+    };
+
     private final CommanderController ctrl;
+    private final Vec2[] oreMarkers = new Vec2[ORE_ITEMS.length];
+    private float lastOreScan = -300f;
 
     public TacticalOverlay(CommanderController ctrl){
         this.ctrl = ctrl;
@@ -56,7 +65,38 @@ public class TacticalOverlay{
             Drawf.target(defWp.x, defWp.y, 10f, defCol);
         }
 
-        // 3. Draw Construction queue previews
+        // 3. Highlight the current priority threat and its approach vector.
+        Unit threat = def.priorityTarget();
+        if(threat != null && threat.isValid()){
+            Lines.stroke(2f, Color.scarlet);
+            Lines.circle(threat.x, threat.y, 12f + Mathf.absin(Time.time, 4f, 4f));
+            Drawf.target(threat.x, threat.y, 6f, Color.scarlet);
+            mindustry.gen.Building core = player.closestCore();
+            if(core != null){
+                Lines.stroke(1f, Color.scarlet.cpy().a(0.45f));
+                Lines.line(core.x, core.y, threat.x, threat.y);
+            }
+        }
+
+        // 4. Mark the closest reachable ore patch for each tracked resource.
+        if(Time.time - lastOreScan > 120f){
+            lastOreScan = Time.time;
+            mindustry.gen.Building core = player.closestCore();
+            for(int i = 0; i < ORE_ITEMS.length; i++){
+                oreMarkers[i] = null;
+                if(core == null) continue;
+                mindustry.world.Tile ore = indexer.findClosestOre(core.x, core.y, ORE_ITEMS[i]);
+                if(ore != null) oreMarkers[i] = new Vec2(ore.worldx(), ore.worldy());
+            }
+        }
+        for(int i = 0; i < ORE_ITEMS.length; i++){
+            Vec2 marker = oreMarkers[i];
+            if(marker == null) continue;
+            Lines.stroke(1.6f, ORE_ITEMS[i].color.cpy().a(0.8f));
+            Lines.square(marker.x, marker.y, 5f);
+        }
+
+        // 5. Draw Construction queue previews
         BuilderRole bld = roles.builder();
         if(bld != null && bld.queueSize() > 0){
             for(BuilderRole.PlannedBlock pb : bld.peekQueue(16)){

@@ -76,25 +76,36 @@ val jarAndroid = tasks.register("jarAndroid"){
     dependsOn(tasks.jar)
 
     doLast{
-        val sdk = sdkRoot?.let{ File(it) }
-        if(sdk == null || !sdk.exists()){
-            throw GradleException("No valid Android SDK found. Ensure that ANDROID_HOME is set to your Android SDK directory.")
+        // Resolve android.jar: ANDROID_JAR override, then the Android SDK platforms dir.
+        val androidJar = System.getenv("ANDROID_JAR")?.let{ File(it) } ?: run{
+            val sdk = sdkRoot?.let{ File(it) }
+            if(sdk == null || !sdk.exists()){
+                throw GradleException("No valid Android SDK found. Set ANDROID_HOME or ANDROID_JAR.")
+            }
+
+            val platformRoot = File(sdk, "platforms").listFiles()
+                ?.sortedDescending()
+                ?.firstOrNull{ File(it, "android.jar").exists() }
+                ?: throw GradleException("No android.jar found. Ensure that you have an Android platform installed.")
+            File(platformRoot, "android.jar")
         }
 
-        val platformRoot = File(sdk, "platforms").listFiles()
-            ?.sortedDescending()
-            ?.firstOrNull{ File(it, "android.jar").exists() }
-            ?: throw GradleException("No android.jar found. Ensure that you have an Android platform installed.")
+        // Prefer a d8 on PATH, otherwise run D8 from an R8 jar via the current JDK.
+        val d8OnPath = System.getenv("PATH")?.split(File.pathSeparator)
+            ?.map{ File(it, if(isWindows) "d8.bat" else "d8") }
+            ?.firstOrNull{ it.canExecute() }
+        val r8Jar = System.getenv("R8_JAR")?.let{ File(it) }
+        val javaBin = File(System.getProperty("java.home"), if(isWindows) "bin/java.exe" else "bin/java")
 
-        //collect dependencies needed for desugaring
         val classpath = (configurations.compileClasspath.get().files +
                 configurations.runtimeClasspath.get().files)
-        val androidJar = File(platformRoot, "android.jar")
-
-        val d8 = if(isWindows) "d8.bat" else "d8"
 
         val command = buildList{
-            add(d8)
+            when{
+                d8OnPath != null -> add(d8OnPath.path)
+                r8Jar != null && r8Jar.exists() -> addAll(listOf(javaBin.path, "-cp", r8Jar.path, "com.android.tools.r8.D8"))
+                else -> throw GradleException("No d8 found. Add d8 to PATH or set R8_JAR to an r8.jar.")
+            }
             add("--lib")
             add(androidJar.path)
             classpath.forEach{ addAll(listOf("--classpath", it.path)) }
@@ -103,7 +114,7 @@ val jarAndroid = tasks.register("jarAndroid"){
             add("${projectName}Desktop.jar")
         }
 
-        //dex and desugar files - this requires d8 in your PATH
+        // Dex and desugar files; requires d8 (or R8's D8 entry point).
         val process = ProcessBuilder(command)
             .directory(layout.buildDirectory.dir("libs").get().asFile)
             .redirectErrorStream(true)

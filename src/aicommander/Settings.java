@@ -82,7 +82,7 @@ public final class Settings{
     }
 
     private static String trimSlash(String value){
-        if(value == null || value.isEmpty()) return "http://127.0.0.1:4098";
+        if(value == null || value.isEmpty()) return "http://127.0.0.1:4097";
         while(value.endsWith("/")){
             value = value.substring(0, value.length() - 1);
         }

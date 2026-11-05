@@ -11,26 +11,27 @@ import java.util.*;
  * Each entry maps a short logical name (sent in LLM JSON) to a BuildSpec that
  * BuilderRole can translate into actual BuildPlan calls.
  *
- * We keep it simple: single-block placements only for now.
- * Multi-block schematics would require the Schematic API which is harder to manage
- * without a file system — deferred to a later milestone.
+ * Simple blocks and a few composite blueprints are supported. Multi-block
+ * schematics use local offsets relative to the order's origin tile.
  *
  * Available names (LLM should use these in "schematic" field of build orders):
- *   "copper-drill"     – mechanical drill (mines copper/lead/stone)
- *   "graphite-drill"   – graphite drill (faster, higher tier)
+ *   "copper-drill"     – mechanical drill (mines copper/lead/coal/sand)
+ *   "graphite-drill"   – pneumatic drill (faster, needs power)
  *   "conveyor"         – basic conveyor
  *   "junction"         – junction block
- *   "duo"              – Duo turret (copper ammo, early defense)
- *   "scatter"          – Scatter turret (pyratite)
- *   "hail"             – Hail turret (blast compound, splash)
+ *   "duo"              – Duo turret (copper/graphite/silicon ammo)
+ *   "scatter"          – Scatter turret (lead/metaglass/scrap, early anti-air)
+ *   "hail"             – Hail artillery (graphite/silicon/pyratite)
+ *   "unloader"         – unloader (moves items from an adjacent core/container)
  *   "container"        – large container for resource buffering
  *   "vault"            – vault (large storage)
- *   "core-shard"       – core shard (handled specially, usually auto-placed)
  *   "power-node"       – basic power node
  *   "combustion"       – combustion generator (coal)
- *   "silicon-smelter"  – silicon smelter
- *   "graphite-press"   – graphite press
- *   "kiln"             – kiln (ceramics / surge alloy precursor)
+ *   "solar-panel"      – solar panel (fuel-free, low output)
+ *   "battery"          – power battery buffer
+ *   "silicon-smelter"  – silicon smelter (coal + sand)
+ *   "graphite-press"   – graphite press (coal)
+ *   "kiln"             – kiln (coal + sand -> metaglass)
  */
 public final class SchematicLibrary{
     public record BlockEntry(int dx, int dy, Block block, int rotation){}
@@ -68,6 +69,7 @@ public final class SchematicLibrary{
         register("combustion",      Blocks.combustionGenerator);
         register("solar-panel",     Blocks.solarPanel);
         register("battery",         Blocks.battery);
+        register("unloader",        Blocks.unloader);
         register("silicon-smelter", Blocks.siliconSmelter);
         register("graphite-press",  Blocks.graphitePress);
         register("kiln",            Blocks.kiln);
@@ -76,7 +78,7 @@ public final class SchematicLibrary{
         register("repair-point",    Blocks.repairPoint);
         register("mender",          Blocks.mender);
         register("mend-projector",  Blocks.mendProjector);
-        register("wave",            Blocks.wave);    // liquid source — useful for turret cooling
+        register("wave",            Blocks.wave);    // liquid turret (consumes water/cryofluid/slag)
         register("lancer",          Blocks.lancer);
         register("arc",             Blocks.arc);
         register("salvo",           Blocks.salvo);

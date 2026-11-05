@@ -29,7 +29,10 @@ public class CommanderController{
     private volatile int lastOrderCount;
     private volatile int promptCount;
     private volatile int errorCount;
+    private volatile int consecutiveErrors;
+    private volatile int generation;
     private volatile long lastReplyAt;
+    private volatile long lastLatencyMs = -1L;
     private volatile String snapshotJson = "{}";
     private volatile String sessionId;
 
@@ -46,9 +49,23 @@ public class CommanderController{
     private float lastPrompt;
     private float lastCoreHealth = -1f;
     private int lastWave = -1;
+    private long matchStartMillis;
+
+    private static final float PREP_WINDOW = 60f * 20f; // 20 seconds before next wave
+    private static final float UPDATE_INTERVAL = 12f;   // ~0.2s, avoids per-frame snapshots
+
+    private volatile Doctrine currentDoctrine = Doctrine.defaultDoctrine();
+    private volatile int evaluatedWave = -1;
 
     public CommanderController(){
-        Events.on(WaveEvent.class, e -> event("wave", "wave " + state.wave));
+        Events.on(WaveEvent.class, e -> {
+            event("wave", "wave " + state.wave);
+            // Fallback trigger: if the prep-window evaluation did not run, plan now.
+            if(active && !busy && evaluatedWave < state.wave){
+                log("Wave " + state.wave + " reached: requesting Commander doctrine update");
+                askCommander(state.wave);
+            }
+        });
         Events.on(UnitDestroyEvent.class, e -> {
             if(e.unit != null && e.unit.team == player.team()){
                 event("unit_lost", e.unit.type.name);
@@ -78,12 +95,9 @@ public class CommanderController{
 
         mapName = state.map.name();
 
-        if(Settings.autoStart() && !isFortress(mapName)){
-            stop("waiting for Fortress");
-            return;
+        if(Settings.autoStart()){
+            start();
         }
-
-        start();
     }
 
     public void start(){
@@ -99,6 +113,7 @@ public class CommanderController{
             return;
         }
 
+        generation++;
         active = true;
         busy = false;
         lastMessage = "";
@@ -106,9 +121,12 @@ public class CommanderController{
         lastOrderCount = 0;
         promptCount = 0;
         errorCount = 0;
+        consecutiveErrors = 0;
         lastReplyAt = 0;
+        lastLatencyMs = -1L;
         lastPrompt = 0f;
         lastUpdate = 0f;
+        matchStartMillis = Time.millis();
         sessionId = null;
         mapName = state.map.name();
         events.clear();
@@ -120,6 +138,10 @@ public class CommanderController{
         client = new ModelClient(Settings.baseUrl(), Settings.username(), Settings.password(),
             Settings.provider(), Settings.model());
 
+        currentDoctrine = Doctrine.defaultDoctrine();
+        evaluatedWave = -1;
+        StateSnapshot.reset();
+        roles.applyDoctrine(currentDoctrine);
         openLog();
         snapshotJson = snapshotWithEvents().toString();
         log("started on " + mapName + " at wave " + state.wave);
@@ -129,6 +151,7 @@ public class CommanderController{
     }
 
     public void stop(String reason){
+        generation++;
         boolean wasActive = active;
         active = false;
         busy = false;
@@ -147,7 +170,7 @@ public class CommanderController{
             return;
         }
 
-        if(Time.time - lastUpdate < 0.2f) return;
+        if(Time.time - lastUpdate < UPDATE_INTERVAL) return;
         lastUpdate = Time.time;
 
         snapshotJson = snapshotWithEvents().toString();
@@ -169,28 +192,47 @@ public class CommanderController{
         fallback.update(this, roles);
         research.update();
 
-        if(active && !busy && client != null && Time.time - lastPrompt >= Math.max(5, Settings.interval())){
-            askCommander();
+        if(!active || busy || client == null) return;
+
+        // Primary cadence: evaluate during the inter-wave preparation countdown so the
+        // new doctrine is ready when the next wave spawns. state.wavetime is in ticks.
+        boolean inPrepWindow = state.wavetime <= PREP_WINDOW;
+        int targetWave = inPrepWindow ? state.wave + 1 : state.wave;
+        int backoff = 1 << Math.min(4, consecutiveErrors);
+        float retryCooldown = Math.max(60f * 45f, 60f * Math.max(5, Settings.interval()) * backoff);
+        // Only retry while the doctrine is actually missing, and only during the
+        // prep window or when the current wave has no doctrine at all. This avoids
+        // mid-wave prompt storms after a failure.
+        boolean needsDoctrine = evaluatedWave < targetWave
+            && (inPrepWindow || evaluatedWave < state.wave || lastPrompt <= 0f);
+        if(needsDoctrine && Time.time - lastPrompt >= retryCooldown){
+            askCommander(targetWave);
         }
     }
 
     public void promptNow(String reason){
         if(!active || busy || client == null) return;
         log("manual prompt triggered: " + reason);
-        askCommander();
+        askCommander(state.wave);
     }
 
     private void askCommander(){
+        askCommander(state.wave);
+    }
+
+    private void askCommander(final int targetWave){
         if(!active || busy || client == null) return;
 
         final String stateText = snapshotJson;
         final int call = ++promptCount;
+        final int gen = generation;
         final String prompt = Prompt.build(stateText, call, lastMessage);
 
         busy = true;
         lastPrompt = Time.time;
 
-        executor.submit(() -> {
+        try{
+            executor.submit(() -> {
             long started = Time.millis();
             try{
                 if(sessionId == null){
@@ -199,32 +241,49 @@ public class CommanderController{
                 }
 
                 String text = client.prompt(sessionId, prompt);
+                if(gen != generation) return;
                 CommanderResponse response = CommanderResponse.parse(text);
 
                 lastMessage = response.message;
                 lastOrderCount = response.orderCount;
                 lastReplyAt = Time.millis();
+                lastLatencyMs = lastReplyAt - started;
                 lastError = "";
-                log("reply #" + call + " in " + (lastReplyAt - started) + "ms: " + oneLine(response.message));
+                consecutiveErrors = 0;
+                evaluatedWave = targetWave;
+                currentDoctrine = response.doctrine;
+                log("reply #" + call + " (wave " + targetWave + ") in " + (lastReplyAt - started) + "ms: " + oneLine(response.message));
 
-                // Dispatch orders to role system (must happen on main thread).
-                if(!response.orders.isEmpty()){
-                    final CommanderResponse r = response;
-                    arc.Core.app.post(() -> roles.applyOrders(r.orders));
-                }
+                // Dispatch doctrine and orders to role system (must happen on main thread).
+                final CommanderResponse r = response;
+                arc.Core.app.post(() -> {
+                    if(gen != generation || !active) return;
+                    roles.applyDoctrine(r.doctrine);
+                    if(!r.orders.isEmpty()){
+                        roles.applyOrders(r.orders);
+                    }
+                });
             }catch(Throwable error){
+                if(gen != generation) return;
                 lastReplyAt = Time.millis();
                 errorCount++;
+                consecutiveErrors++;
                 lastError = error.getClass().getSimpleName() + ": " + safeMessage(error);
-                log("error #" + call + ": " + lastError);
+                log("error #" + call + " (retaining last-known doctrine): " + lastError);
                 // Invalidate session if session was rejected or server crashed
-                if(lastError.contains("404") || lastError.contains("Connection refused") || lastError.contains("400")){
+                if(lastError.contains("404") || lastError.contains("Connection refused")
+                    || lastError.contains("400") || lastError.contains("401") || lastError.contains("403")){
                     sessionId = null;
                 }
             }finally{
-                busy = false;
+                if(gen == generation) busy = false;
             }
-        });
+            });
+        }catch(Throwable scheduleError){
+            busy = false;
+            lastError = "scheduler: " + safeMessage(scheduleError);
+            log("error scheduling prompt: " + lastError);
+        }
     }
 
     private Jval snapshotWithEvents(){
@@ -241,7 +300,9 @@ public class CommanderController{
         if(events.size() >= 30){
             events.removeFirst();
         }
-        events.addLast(Time.millis() + " " + type + (detail == null || detail.isEmpty() ? "" : " " + detail));
+        float at = Math.max(0f, (Time.millis() - matchStartMillis) / 1000f);
+        events.addLast(String.format(Locale.ROOT, "%.1fs %s%s", at, type,
+            detail == null || detail.isEmpty() ? "" : " " + detail));
     }
 
     private CoreBuild core(){
@@ -269,9 +330,7 @@ public class CommanderController{
         }
     }
 
-    private static boolean isFortress(String name){
-        return name != null && name.toLowerCase(Locale.ROOT).contains("fortress");
-    }
+
 
     private static String safeMessage(Throwable error){
         String message = error.getMessage();
@@ -320,6 +379,10 @@ public class CommanderController{
         return lastReplyAt;
     }
 
+    public long lastLatencyMs(){
+        return lastLatencyMs;
+    }
+
     public String sessionId(){
         return sessionId;
     }
@@ -330,6 +393,10 @@ public class CommanderController{
 
     public String mapName(){
         return mapName;
+    }
+
+    public Doctrine currentDoctrine(){
+        return currentDoctrine;
     }
 
     public UnitRoleManager roles(){

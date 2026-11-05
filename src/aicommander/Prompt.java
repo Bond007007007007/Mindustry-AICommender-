@@ -1,78 +1,80 @@
 package aicommander;
 
 /**
- * Builds the prompt sent to the Commander LLM each polling cycle.
+ * Builds the prompt sent to the Commander LLM at each wave boundary.
  *
  * The prompt includes:
- *  - A system preamble (role, rules, JSON contract)
+ *  - High-level role guidelines for the Strategic Commander
  *  - Available schematics from SchematicLibrary
- *  - Current state JSON
- *  - Previous Commander message for continuity
+ *  - Current compact game state (economy rates, wave countdown, power, threats)
+ *  - The Doctrine JSON schema to return
  */
 public final class Prompt{
     private static final String SYSTEM_HEADER = """
-        You are the Commander of an AI-controlled team in Mindustry v160.
-        The match is one endless survival game on the Fortress map under strict normal rules.
-        Your score is the highest wave reached. The run ends when the team's last core is destroyed.
+        You are the Strategic Commander of an AI team in Mindustry v160 (Endless Survival on Fortress).
+        Local 60 FPS deterministic bot roles execute all real-time tactical tasks:
+          - Builder: Constructs schematics, solves conveyor routing, builds power grids.
+          - Logistics: Mines ore and feeds the core based on your resourcePriorities.
+          - Defender & Squads: Fights enemies, holds choke points, kiting, and front-line repairs.
+          - Research: Autonomously unlocks tech tree whenever surplus resources exist.
 
-        You are not a unit controller. Scripted roles handle movement, mining, building, production,
-        and combat. You issue durable orders and priorities. The game runs continuously while you
-        think, so do not depend on pausing or on frame-perfect timing.
+        Your job is MACRO STRATEGY, evaluated once per wave:
+        1. Set the strategic posture (EXPAND, TURTLE, TECH_RUSH, FORTIFY).
+        2. Set normalized weights (0.0 to 1.0) for resourcePriorities (e.g. copper, lead, coal, silicon, titanium).
+        3. Set defenseFocus (ANTI_AIR, GROUND_SWARM, HEAVY_ARMOR, BALANCED, REPAIR).
+        4. Set squadStance ("defend", "rally", "assault", "retreat").
+        5. Queue up to 4 high-value buildDirectives (composite defense bunkers, drills, power, factories).
 
         Rules:
-        - Never assume free resources, extra units, omniscient vision, or edited game rules.
-        - Only use information in the provided state. Hidden enemies are not shown.
-        - Prefer robust, resource-aware plans over risky all-ins.
-        - Keep the core alive, keep the economy running, and scale defense with the wave number.
-        - Orders persist until replaced. Only issue new orders when the situation has changed.
-        - Do not issue more than 6 orders per turn. Prioritize the most urgent ones.
+        - Only issue up to 4 buildDirectives per wave to avoid overwhelming builder queues.
+        - Use ONLY schematic names from the available list. Unknown names are discarded.
+        - Monitor "spawns" and build defenses between spawns and your core.
+        - Respect "world.tilesW"/"world.tilesH" and "world.pixelsW"/"world.pixelsH": never place outside the map.
+        - Build on clear, buildable ground, not on the core, spawn points, or existing buildings. Multi-block schematics need a clear footprint around x/y (x,y is the center tile); leave room for their size.
+        - Drills must sit on the matching ore tile. Conveyor lines must start beside the source and end beside the destination, never on top of them.
+        - Check "power" status: if balance is negative or zero, build power (combustion near coal or solar-panel) plus a power-node. If power.graphs > 1 or power.isolated > 0, the grid is split: use power-node-large for distant factories.
+        - Feed turrets ammo by building a drill on nearby ore and a conveyor line to the turret. Cores do NOT output items onto conveyors; never use a core-to-turret line for ammo unless an unloader is included.
+        - Duo uses copper; Scatter uses lead (early anti-air). Hail needs graphite/silicon, so do not assign it a simple drill line.
+        - If aerial threats appear or "threats.nearCoreAir" is high, set defenseFocus to ANTI_AIR and build "scatter-nest".
+        - If "defenses.emptyTurrets" or "lowAmmoTurrets" is high, prioritize ammo feeds before more turrets.
+        - Sand is required for silicon; keep sand in resourcePriorities when teching.
 
-        Roles managed by scripts (you give orders, scripts execute):
-          Builder   – places blocks from your "build" orders and drives player/builder units to construct them
-          Defender  – holds positions from your "defend" orders, protects core, and engages nearby attackers
-          Scout     – attacks/explores positions from your "attack" orders using native CommandAI
-          Repair    – automatically prioritizes and repairs damaged turrets, walls, and structures
-          Logistics – gathers copper/lead via "mine" orders or automatically mines to supply the core when idle
-
-        Early Game Bootstrapping & Tactical Defense Strategy:
-        1. Check "spawns" in state: know where enemy waves spawn and their distance to your core!
-        2. Look at "ores" in state to find closest copper, lead, and coal.
-        3. Place a mechanical drill ("copper-drill") on the ore coordinates.
-        4. Connect the drill to the core using a conveyor line order:
-           {"type": "build", "schematic": "conveyor", "x": drillX, "y": drillY, "x2": coreX, "y2": coreY}
-           (The game will automatically lay down the entire conveyor path and orient it towards the core!)
-        5. Build defensive choke points facing "spawns": "copper-wall-large", "duo", "scatter" (anti-air), and "mender".
-           CRITICAL: Feed ammo (copper/lead) into your turrets via conveyors! Check "turrets" in state for ammo status.
-        6. Monitor "power" in state (produced, needed, batteryStored):
-           Place "combustion" power generators near coal and wire them with "power-node"s.
-           (Power nodes automatically discover and link to nearby power buildings in laser range!)
-        7. Build "air-factory" and issue {"type": "produce", "unit": "mono"} to produce autonomous miner units!
-
+        Posture playbook (match directives to the chosen posture):
+        - EXPAND: add drills and conveyor feeds for copper/lead, one generator if power is low, and at most one cheap turret. Keep defenseFocus BALANCED unless air is present.
+        - TURTLE: thicken the core approach with copper-wall-large and Duo/Scatter coverage; ensure every turret has ammo; repair first when damagedBuildings is high.
+        - TECH_RUSH: build graphite-press and silicon-smelter with dedicated coal/sand drills and power; defend with a small Duo/Scatter screen; keep coal and sand weights high.
+        - FORTIFY: layer walls in front of turrets, add Scatter for air and Duo/Arc for ground, and use repair-point or mend-projector near the front. Prefer power-node-large when the grid is split.
         """;
 
     private static final String JSON_CONTRACT = """
 
-        Return exactly one JSON object, no markdown, no text outside it:
+        Return exactly ONE valid JSON object, no markdown, no other text:
         {
-          "message": "2-3 sentence situation report and reasoning",
-          "orders": [
-            {"type": "defend", "x": 0, "y": 0},
-            {"type": "attack", "x": 0, "y": 0},
-            {"type": "build", "schematic": "NAME", "x": 0, "y": 0, "rotation": 0},
-            {"type": "build", "schematic": "conveyor", "x": 0, "y": 0, "x2": 100, "y2": 100},
+          "reasoning": "2-3 sentences explaining wave assessment, economic health, and current strategic focus",
+          "posture": "EXPAND" | "TURTLE" | "TECH_RUSH" | "FORTIFY",
+          "defenseFocus": "ANTI_AIR" | "GROUND_SWARM" | "HEAVY_ARMOR" | "BALANCED" | "REPAIR",
+          "resourcePriorities": {
+            "copper": 1.0,
+            "lead": 0.8,
+            "coal": 0.5,
+            "sand": 0.4,
+            "silicon": 0.3
+          },
+          "squadStance": "defend" | "rally" | "assault" | "retreat",
+          "buildDirectives": [
+            {"type": "build", "schematic": "duo-bunker", "x": 100, "y": 200, "rotation": 0},
+            {"type": "build", "schematic": "conveyor", "x": 100, "y": 100, "x2": 200, "y2": 200},
             {"type": "produce", "unit": "mono"}
-          ],
-          "settings": {}
+          ]
         }
 
-        Coordinates are world PIXEL coordinates (not tile coords). Multiply tile coords by 8.
-        Use an empty orders array when no new orders are needed.
-        Allowed order types: defend, attack, build, mine, produce, stance.
-        Stance orders: {"type": "stance", "stance": "defend" | "rally" | "assault" | "retreat", "x": 0, "y": 0}
-        For "build" with conveyor/bridge/conduit: providing "x2" and "y2" will lay a connected line of tiles.
-        Available composite defense blueprints: "duo-bunker" (Duo surrounded by walls & router), "duo-battery-cluster", "scatter-nest", "drill-power-outpost".
-        For "mine": use schematic "copper", "lead", or "coal".
-        For "produce": unit can be "mono", "poly", "flare", or "dagger".
+        Coordinates are world PIXEL coordinates (multiply tile coords by 8); valid pixels are
+        0..world.pixelsW-1 and 0..world.pixelsH-1. You may alternatively send tx/ty/tx2/ty2 in
+        TILES (0..world.tilesW-1, 0..world.tilesH-1); pixel x/y takes precedence when both exist.
+        For conveyor lines use {"type":"build","schematic":"conveyor","x":...,"y":...,"x2":...,"y2":...}.
+        Keep every directive inside the map and its footprint clear of existing blocks.
+        Directives can be empty [] if current structures are sufficient.
+        Available composite schematics: "duo-bunker", "duo-battery-cluster", "scatter-nest", "drill-power-outpost".
         """;
 
     private Prompt(){}
@@ -82,21 +84,21 @@ public final class Prompt{
 
         out.append(SYSTEM_HEADER);
 
-        // Embed available schematics.
-        out.append("Available build schematics (use exact name in \"schematic\" field):\n  ");
+        out.append("Available build schematics:\n  ");
         out.append(SchematicLibrary.availableNames());
         out.append('\n');
 
         out.append(JSON_CONTRACT);
 
-        out.append("\nCommander call: ").append(callNumber).append('\n');
+        out.append("\nDoctrine evaluation #").append(callNumber).append('\n');
         if(previousMessage != null && !previousMessage.isEmpty()){
-            out.append("Your previous report: ").append(previousMessage).append('\n');
+            out.append("Previous strategic assessment: ").append(previousMessage).append('\n');
         }
-        out.append("\nCurrent authoritative state:\n");
+        out.append("\nCurrent State Snapshot:\n");
         out.append(stateJson);
-        out.append("\n\nReturn the JSON object now.");
+        out.append("\n\nReturn the Doctrine JSON object now.");
 
         return out.toString();
     }
 }
+
